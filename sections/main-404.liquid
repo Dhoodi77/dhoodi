@@ -1,0 +1,6 @@
+<section class="error-404 container">
+  <h1>{{ 'general.404.title' | t: default: 'Page not found' }}</h1>
+  <p>{{ 'general.404.content' | t: default: "The page you're looking for doesn't exist." }}</p>
+  <a href="{{ routes.root_url }}" class="btn btn--primary">Back to home</a>
+</section>
+{% schema %}{ "name": "404", "settings": [] }{% endschema %}

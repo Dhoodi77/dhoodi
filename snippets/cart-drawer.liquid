@@ -1,0 +1,52 @@
+<aside id="CartDrawer" class="cart-drawer" aria-label="Cart" hidden>
+  <div class="cart-drawer__header">
+    <h2>{{ 'cart.general.title' | t: default: 'Your cart' }}</h2>
+    <button data-cart-close aria-label="Close cart">&times;</button>
+  </div>
+
+  {%- assign free_shipping_threshold = 5000 -%}
+  {%- comment -%} threshold in cents; sync with settings_data / a metafield if this becomes market-specific {%- endcomment -%}
+  <div class="cart-drawer__progress">
+    {%- if cart.total_price >= free_shipping_threshold -%}
+      <p>You've unlocked free shipping.</p>
+    {%- else -%}
+      {%- assign remaining = free_shipping_threshold | minus: cart.total_price -%}
+      <p>{{ remaining | money }} away from free shipping.</p>
+      <div class="cart-drawer__bar"><div style="width:{{ cart.total_price | times: 100 | divided_by: free_shipping_threshold }}%"></div></div>
+    {%- endif -%}
+  </div>
+
+  <form action="{{ routes.cart_url }}" method="post" id="CartDrawerForm">
+    <ul class="cart-drawer__items">
+      {%- for item in cart.items -%}
+        <li class="cart-drawer__item">
+          <a href="{{ item.url }}">{{ item.image | image_url: width: 160 | image_tag: loading: 'lazy', widths: '80,160' }}</a>
+          <div>
+            <a href="{{ item.url }}">{{ item.product.title }}</a>
+            {%- if item.variant.title != 'Default Title' -%}<p class="cart-drawer__variant">{{ item.variant.title }}</p>{%- endif -%}
+            <div class="cart-drawer__qty">
+              <button type="button" data-qty-decrease data-line="{{ forloop.index }}" aria-label="Decrease quantity">&minus;</button>
+              <input type="number" name="updates[]" value="{{ item.quantity }}" min="0" aria-label="Quantity">
+              <button type="button" data-qty-increase data-line="{{ forloop.index }}" aria-label="Increase quantity">+</button>
+            </div>
+          </div>
+          <span>{{ item.final_line_price | money }}</span>
+        </li>
+      {%- else -%}
+        <li class="cart-drawer__empty">Your cart is empty.</li>
+      {%- endfor -%}
+    </ul>
+
+    {%- if cart.item_count > 0 -%}
+      <div class="cart-drawer__footer">
+        <div class="cart-drawer__subtotal">
+          <span>Subtotal</span>
+          <span>{{ cart.total_price | money }}</span>
+        </div>
+        <p class="cart-drawer__note">Taxes and shipping calculated at checkout.</p>
+        <button type="submit" name="checkout" class="btn btn--primary btn--block">Checkout</button>
+      </div>
+    {%- endif -%}
+  </form>
+</aside>
+<div class="cart-drawer__overlay" data-cart-close hidden></div>

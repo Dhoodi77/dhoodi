@@ -1,0 +1,43 @@
+{%- comment -%}
+  Accepts: product (object)
+{%- endcomment -%}
+<div class="product-card">
+  <a href="{{ product.url }}" class="product-card__media">
+    {%- if product.featured_media -%}
+      {{ product.featured_media | image_url: width: 800 | image_tag:
+          loading: 'lazy',
+          widths: '300,450,600,800',
+          sizes: '(min-width: 990px) 25vw, 50vw',
+          alt: product.featured_media.alt | default: product.title
+      }}
+      {%- if product.media[1] -%}
+        {{ product.media[1] | image_url: width: 800 | image_tag:
+            loading: 'lazy', widths: '300,450,600,800', class: 'product-card__media-hover',
+            alt: ''
+        }}
+      {%- endif -%}
+    {%- else -%}
+      {{ 'product-1' | placeholder_svg_tag: 'product-card__placeholder' }}
+    {%- endif -%}
+
+    {%- if product.compare_at_price > product.price -%}
+      <span class="badge badge--sale">{{ 'products.product.on_sale' | t: default: 'Sale' }}</span>
+    {%- endif -%}
+  </a>
+
+  <div class="product-card__info">
+    <a href="{{ product.url }}"><h3 class="product-card__title">{{ product.title }}</h3></a>
+    {% render 'price', product: product %}
+
+    {%- if product.metafields.custom.routine_step -%}
+      <span class="product-card__step-tag">Step {{ product.metafields.custom.routine_step }}</span>
+    {%- endif -%}
+
+    {%- if product.available and product.has_only_default_variant -%}
+      {%- form 'product', product, class: 'product-card__quick-add' -%}
+        <input type="hidden" name="id" value="{{ product.selected_or_first_available_variant.id }}">
+        <button type="submit" class="btn btn--small">{{ 'products.product.add_to_cart' | t: default: 'Quick add' }}</button>
+      {%- endform -%}
+    {%- endif -%}
+  </div>
+</div>

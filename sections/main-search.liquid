@@ -1,0 +1,18 @@
+<section class="search-results container">
+  <h1>{{ 'general.search.title' | t: default: 'Search' }}</h1>
+  <form action="{{ routes.search_url }}" method="get" role="search">
+    <input type="search" name="q" value="{{ search.terms | escape }}" aria-label="Search">
+    <input type="hidden" name="type" value="product">
+    <button type="submit" class="btn btn--primary">Search</button>
+  </form>
+
+  {%- if search.performed -%}
+    <p>{{ search.results_count }} results for "{{ search.terms }}"</p>
+    <div class="product-grid">
+      {%- for item in search.results -%}
+        {%- if item.object_type == 'product' -%}{% render 'product-card', product: item %}{%- endif -%}
+      {%- endfor -%}
+    </div>
+  {%- endif -%}
+</section>
+{% schema %}{ "name": "Search", "settings": [] }{% endschema %}

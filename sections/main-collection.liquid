@@ -1,0 +1,58 @@
+<section class="collection container">
+  <header class="collection__header">
+    <h1>{{ collection.title }}</h1>
+    {%- if collection.description != blank -%}<div class="collection__description">{{ collection.description }}</div>{%- endif -%}
+  </header>
+
+  <div class="collection__toolbar">
+    <button class="collection__filter-toggle" data-filter-toggle aria-expanded="false" aria-controls="CollectionFilters">Filter</button>
+
+    {%- form 'collection_sort' -%}
+      <label for="SortBy" class="sr-only">Sort by</label>
+      <select name="sort_by" id="SortBy" onchange="this.form.submit()">
+        {%- for option in collection.sort_options -%}
+          <option value="{{ option.value }}" {% if option.value == collection.sort_by %}selected{% endif %}>{{ option.name }}</option>
+        {%- endfor -%}
+      </select>
+    {%- endform -%}
+  </div>
+
+  <div class="collection__layout">
+    <aside id="CollectionFilters" class="collection__filters">
+      {%- for filter in collection.filters -%}
+        <fieldset>
+          <legend>{{ filter.label }}</legend>
+          {%- for value in filter.values -%}
+            <label>
+              <input type="checkbox" name="{{ value.param_name }}" value="{{ value.value }}" {% if value.active %}checked{% endif %} data-filter-input>
+              {{ value.label }} ({{ value.count }})
+            </label>
+          {%- endfor -%}
+        </fieldset>
+      {%- endfor -%}
+    </aside>
+
+    <div class="product-grid" id="CollectionProductGrid">
+      {%- paginate collection.products by 24 -%}
+        {%- for product in collection.products -%}
+          {% render 'product-card', product: product %}
+        {%- else -%}
+          <p class="empty-state">No products match these filters.</p>
+        {%- endfor -%}
+
+        {%- if paginate.pages > 1 -%}
+          <nav class="pagination" aria-label="Pagination">
+            {{ paginate | default_pagination }}
+          </nav>
+        {%- endif -%}
+      {%- endpaginate -%}
+    </div>
+  </div>
+</section>
+
+{% schema %}
+{
+  "name": "Collection pages",
+  "settings": []
+}
+{% endschema %}

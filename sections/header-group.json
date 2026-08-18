@@ -1,0 +1,20 @@
+{
+  "type": "header-group",
+  "name": "Header group",
+  "sections": {
+    "announcement-bar": {
+      "type": "announcement-bar",
+      "settings": {
+        "message": "Free shipping over $50 / \u20ac45 \u2014 US & EU",
+        "link": ""
+      }
+    },
+    "header": {
+      "type": "header",
+      "settings": {
+        "sticky": true
+      }
+    }
+  },
+  "order": ["announcement-bar", "header"]
+}

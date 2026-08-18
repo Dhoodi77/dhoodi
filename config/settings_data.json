@@ -1,0 +1,15 @@
+{
+  "current": "Default",
+  "presets": {
+    "Default": {
+      "color_background": "#E8DFD6",
+      "color_text": "#1B1B1B",
+      "color_accent": "#8A6D5C",
+      "color_sage": "#A9B29A",
+      "font_display": "georgia_n4",
+      "font_body": "helvetica_n4",
+      "cart_drawer_enabled": true,
+      "free_shipping_threshold": 50
+    }
+  }
+}

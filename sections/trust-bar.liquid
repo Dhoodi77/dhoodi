@@ -1,0 +1,34 @@
+<section class="trust-bar">
+  <ul class="container trust-bar__list">
+    {%- for block in section.blocks -%}
+      <li {{ block.shopify_attributes }}>
+        {%- if block.settings.icon != blank -%}{{ block.settings.icon | image_url: width: 40 | image_tag: loading: 'lazy', alt: '' }}{%- endif -%}
+        <span>{{ block.settings.label }}</span>
+      </li>
+    {%- endfor -%}
+  </ul>
+</section>
+
+{% schema %}
+{
+  "name": "Trust bar",
+  "blocks": [
+    {
+      "type": "item",
+      "name": "Trust item",
+      "settings": [
+        { "type": "image_picker", "id": "icon", "label": "Icon" },
+        { "type": "text", "id": "label", "label": "Label", "default": "Ships to US & EU" }
+      ]
+    }
+  ],
+  "default": {
+    "blocks": [
+      { "type": "item", "settings": { "label": "Ships to US & EU" } },
+      { "type": "item", "settings": { "label": "Cruelty-free" } },
+      { "type": "item", "settings": { "label": "30-day returns" } }
+    ]
+  },
+  "presets": [{ "name": "Trust bar" }]
+}
+{% endschema %}

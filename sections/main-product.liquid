@@ -1,0 +1,170 @@
+{%- assign current_variant = product.selected_or_first_available_variant -%}
+<section class="product container" data-product-json="{{ product | json | escape }}">
+  <div class="product__gallery" data-product-gallery>
+    {%- for media in product.media -%}
+      <button class="product__thumb" data-media-id="{{ media.id }}" aria-label="View image {{ forloop.index }}">
+        {{ media | image_url: width: 200 | image_tag: loading: 'lazy', alt: media.alt }}
+      </button>
+    {%- endfor -%}
+    <div class="product__main-media">
+      {%- if product.selected_or_first_available_variant.featured_media -%}
+        {{ product.selected_or_first_available_variant.featured_media | image_url: width: 1200 | image_tag:
+            loading: 'eager', fetchpriority: 'high',
+            widths: '480,720,960,1200',
+            sizes: '(min-width: 990px) 45vw, 100vw',
+            alt: product.selected_or_first_available_variant.featured_media.alt | default: product.title,
+            id: 'ProductMainMedia'
+        }}
+      {%- else -%}
+        {{ 'product-1' | placeholder_svg_tag: 'product__placeholder' }}
+      {%- endif -%}
+    </div>
+  </div>
+
+  <div class="product__info">
+    <h1 class="product__title">{{ product.title }}</h1>
+
+    {%- comment -%} Rating: wire to your review app's snippet/metafield — no fabricated ratings ship here {%- endcomment -%}
+    {%- if product.metafields.reviews.rating -%}
+      <div class="product__rating">{{ product.metafields.reviews.rating.value }} ({{ product.metafields.reviews.rating_count }})</div>
+    {%- endif -%}
+
+    {% render 'price', product: product, variant: current_variant %}
+
+    {%- form 'product', product, id: 'ProductForm', class: 'product__form' -%}
+      <input type="hidden" name="id" value="{{ current_variant.id }}" data-variant-id>
+
+      {%- unless product.has_only_default_variant -%}
+        {%- for option in product.options_with_values -%}
+          <fieldset class="product__option">
+            <legend>{{ option.name }}</legend>
+            {%- for value in option.values -%}
+              <label class="product__option-value">
+                <input type="radio" name="option-{{ option.position }}" value="{{ value | escape }}"
+                  {% if option.selected_value == value %}checked{% endif %} data-option-input>
+                <span>{{ value }}</span>
+              </label>
+            {%- endfor -%}
+          </fieldset>
+        {%- endfor -%}
+      {%- endunless -%}
+
+      <div class="product__quantity">
+        <label for="Quantity">Quantity</label>
+        <input type="number" id="Quantity" name="quantity" value="1" min="1">
+      </div>
+
+      <button type="submit" class="btn btn--primary btn--large" {% unless current_variant.available %}disabled{% endunless %} data-add-to-cart>
+        {%- if current_variant.available -%}
+          {{ 'products.product.add_to_cart' | t: default: 'Add to cart' }}
+        {%- else -%}
+          {{ 'products.product.sold_out' | t: default: 'Sold out' }}
+        {%- endif -%}
+      </button>
+
+      {%- if current_variant.available -%}
+        {{ form | payment_button }}
+      {%- endif -%}
+    {%- endform -%}
+
+    <div class="product__accordions">
+      {%- for block in section.blocks -%}
+        {%- case block.type -%}
+          {%- when 'benefits' -%}
+            <div class="product__block" {{ block.shopify_attributes }}>
+              <h2>{{ block.settings.heading | default: 'Benefits' }}</h2>
+              {{ block.settings.content }}
+            </div>
+          {%- when 'how_to_use' -%}
+            <details class="product__block" {{ block.shopify_attributes }}>
+              <summary>{{ block.settings.heading | default: 'How to use' }}</summary>
+              {%- if product.metafields.custom.how_to_use != blank -%}
+                {{ product.metafields.custom.how_to_use.value }}
+              {%- else -%}
+                <p class="empty-state">How-to-use content pending — populate the custom.how_to_use metafield.</p>
+              {%- endif -%}
+            </details>
+          {%- when 'ingredients' -%}
+            <details class="product__block" {{ block.shopify_attributes }}>
+              <summary>{{ block.settings.heading | default: 'Ingredients' }}</summary>
+              {%- if product.metafields.custom.ingredients_inci != blank -%}
+                <p>{{ product.metafields.custom.ingredients_inci.value }}</p>
+              {%- else -%}
+                <p class="empty-state">INCI list pending real formulation data — do not launch this product page without it.</p>
+              {%- endif -%}
+            </details>
+          {%- when 'shipping_returns' -%}
+            <details class="product__block" {{ block.shopify_attributes }}>
+              <summary>{{ block.settings.heading | default: 'Shipping & returns' }}</summary>
+              {{ block.settings.content }}
+              <a href="{{ block.settings.policy_link }}">Full policy</a>
+            </details>
+          {%- when 'custom_liquid' -%}
+            <div class="product__block" {{ block.shopify_attributes }}>{{ block.settings.liquid }}</div>
+        {%- endcase -%}
+      {%- endfor -%}
+    </div>
+  </div>
+</section>
+
+<div class="product__sticky-bar" data-sticky-add-to-cart hidden>
+  <div class="container product__sticky-bar-inner">
+    <span>{{ product.title }}</span>
+    {% render 'price', product: product, variant: current_variant %}
+    <button type="submit" form="ProductForm" class="btn btn--primary">{{ 'products.product.add_to_cart' | t: default: 'Add to cart' }}</button>
+  </div>
+</div>
+
+{%- if section.settings.show_related -%}
+  <section class="product__related container">
+    <h2>You may also like</h2>
+    <div class="product-grid">
+      {%- for rec_product in recommendations.products -%}
+        {% render 'product-card', product: rec_product %}
+      {%- endfor -%}
+    </div>
+  </section>
+  <script>
+    // Native Shopify product recommendations, loaded async per Shopify's recommended pattern
+    (function () {
+      var el = document.currentScript.previousElementSibling;
+    })();
+  </script>
+{%- endif -%}
+
+{% schema %}
+{
+  "name": "Product information",
+  "settings": [
+    { "type": "checkbox", "id": "show_related", "label": "Show related products", "default": true }
+  ],
+  "blocks": [
+    { "type": "benefits", "name": "Benefits", "settings": [
+      { "type": "text", "id": "heading", "label": "Heading", "default": "Benefits" },
+      { "type": "richtext", "id": "content", "label": "Content" }
+    ]},
+    { "type": "how_to_use", "name": "How to use", "settings": [
+      { "type": "text", "id": "heading", "label": "Heading", "default": "How to use" }
+    ]},
+    { "type": "ingredients", "name": "Ingredients", "settings": [
+      { "type": "text", "id": "heading", "label": "Heading", "default": "Ingredients" }
+    ]},
+    { "type": "shipping_returns", "name": "Shipping & returns", "settings": [
+      { "type": "text", "id": "heading", "label": "Heading", "default": "Shipping & returns" },
+      { "type": "richtext", "id": "content", "label": "Summary" },
+      { "type": "url", "id": "policy_link", "label": "Full policy link" }
+    ]},
+    { "type": "custom_liquid", "name": "Custom liquid", "settings": [
+      { "type": "liquid", "id": "liquid", "label": "Liquid" }
+    ]}
+  ],
+  "default": {
+    "blocks": [
+      { "type": "benefits" },
+      { "type": "how_to_use" },
+      { "type": "ingredients" },
+      { "type": "shipping_returns" }
+    ]
+  }
+}
+{% endschema %}

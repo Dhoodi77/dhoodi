@@ -1,0 +1,10 @@
+{
+  "sections": {
+    "main": { "type": "main-product" },
+    "faq": {
+      "type": "faq-accordion",
+      "settings": { "heading": "Questions about this product" }
+    }
+  },
+  "order": ["main", "faq"]
+}

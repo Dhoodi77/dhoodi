@@ -1,0 +1,34 @@
+[
+  {
+    "name": "theme_info",
+    "theme_name": "Vera & Fold",
+    "theme_version": "0.1.0",
+    "theme_author": "Custom build",
+    "theme_documentation_url": "",
+    "theme_support_url": ""
+  },
+  {
+    "name": "Colors",
+    "settings": [
+      { "type": "header", "content": "Brand palette" },
+      { "type": "color", "id": "color_background", "label": "Background", "default": "#E8DFD6" },
+      { "type": "color", "id": "color_text", "label": "Text", "default": "#1B1B1B" },
+      { "type": "color", "id": "color_accent", "label": "Accent", "default": "#8A6D5C" },
+      { "type": "color", "id": "color_sage", "label": "Secondary accent", "default": "#A9B29A" }
+    ]
+  },
+  {
+    "name": "Typography",
+    "settings": [
+      { "type": "font_picker", "id": "font_display", "label": "Display / heading font", "default": "georgia_n4" },
+      { "type": "font_picker", "id": "font_body", "label": "Body font", "default": "helvetica_n4" }
+    ]
+  },
+  {
+    "name": "Cart",
+    "settings": [
+      { "type": "checkbox", "id": "cart_drawer_enabled", "label": "Use cart drawer instead of cart page redirect", "default": true },
+      { "type": "number", "id": "free_shipping_threshold", "label": "Free shipping threshold (major currency unit, e.g. 50 = $50)", "default": 50 }
+    ]
+  }
+]
