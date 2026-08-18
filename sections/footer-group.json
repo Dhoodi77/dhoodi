@@ -1,5 +1,5 @@
 {
-  "type": "footer-group",
+  "type": "footer",
   "name": "Footer group",
   "sections": {
     "footer": {

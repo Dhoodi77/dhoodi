@@ -1,16 +1,49 @@
 {
   "sections": {
     "hero": { "type": "hero" },
-    "trust-bar": { "type": "trust-bar" },
-    "benefit-grid": { "type": "benefit-grid" },
+    "trust-bar": {
+      "type": "trust-bar",
+      "blocks": {
+        "trust-1": { "type": "item", "settings": { "label": "Ships to US & EU" } },
+        "trust-2": { "type": "item", "settings": { "label": "Cruelty-free" } },
+        "trust-3": { "type": "item", "settings": { "label": "30-day returns" } }
+      },
+      "block_order": ["trust-1", "trust-2", "trust-3"]
+    },
+    "benefit-grid": {
+      "type": "benefit-grid",
+      "blocks": {
+        "benefit-1": { "type": "benefit", "settings": { "title": "Supports the skin barrier", "text": "Formulated around barrier-supporting ingredients — pending final formulation copy." } },
+        "benefit-2": { "type": "benefit", "settings": { "title": "One step, not five", "text": "Built to replace multiple products, not add another one." } },
+        "benefit-3": { "type": "benefit", "settings": { "title": "Low-irritation first", "text": "Developed for routine-fatigued, sensitized skin." } }
+      },
+      "block_order": ["benefit-1", "benefit-2", "benefit-3"]
+    },
     "bestsellers": {
       "type": "bestsellers",
       "settings": { "heading": "Best sellers" }
     },
-    "routine-builder": { "type": "routine-builder" },
+    "routine-builder": {
+      "type": "routine-builder",
+      "blocks": {
+        "step-1": { "type": "step", "settings": { "fallback_title": "Cleanse" } },
+        "step-2": { "type": "step", "settings": { "fallback_title": "Treat" } },
+        "step-3": { "type": "step", "settings": { "fallback_title": "Hydrate" } },
+        "step-4": { "type": "step", "settings": { "fallback_title": "Protect" } }
+      },
+      "block_order": ["step-1", "step-2", "step-3", "step-4"]
+    },
     "ugc-grid": { "type": "ugc-grid" },
     "bundle-block": { "type": "bundle-block" },
-    "faq-accordion": { "type": "faq-accordion" }
+    "faq-accordion": {
+      "type": "faq-accordion",
+      "blocks": {
+        "faq-1": { "type": "question", "settings": { "question": "How often should I use this?", "answer": "<p>Pending final how-to-use copy from formulation data.</p>" } },
+        "faq-2": { "type": "question", "settings": { "question": "Can I use it with actives?", "answer": "<p>Pending final how-to-use copy from formulation data.</p>" } },
+        "faq-3": { "type": "question", "settings": { "question": "What's your return policy?", "answer": "<p>See our <a href=\"/pages/returns\">Returns page</a> for full details.</p>" } }
+      },
+      "block_order": ["faq-1", "faq-2", "faq-3"]
+    }
   },
   "order": [
     "hero",

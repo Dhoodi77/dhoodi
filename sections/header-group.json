@@ -1,5 +1,5 @@
 {
-  "type": "header-group",
+  "type": "header",
   "name": "Header group",
   "sections": {
     "announcement-bar": {
