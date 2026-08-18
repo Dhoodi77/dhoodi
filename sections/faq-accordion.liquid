@@ -1,0 +1,41 @@
+<section class="faq container">
+  {%- if section.settings.heading != blank -%}<h2>{{ section.settings.heading }}</h2>{%- endif -%}
+  <div class="faq__list">
+    {%- for block in section.blocks -%}
+      <details class="faq__item" {{ block.shopify_attributes }}>
+        <summary>
+          {{ block.settings.question }}
+          <span class="faq__icon" aria-hidden="true"></span>
+        </summary>
+        <div class="faq__answer">{{ block.settings.answer }}</div>
+      </details>
+    {%- endfor -%}
+  </div>
+</section>
+
+{% schema %}
+{
+  "name": "FAQ",
+  "settings": [
+    { "type": "text", "id": "heading", "label": "Heading", "default": "Questions" }
+  ],
+  "blocks": [
+    {
+      "type": "question",
+      "name": "Question",
+      "settings": [
+        { "type": "text", "id": "question", "label": "Question" },
+        { "type": "richtext", "id": "answer", "label": "Answer" }
+      ]
+    }
+  ],
+  "default": {
+    "blocks": [
+      { "type": "question", "settings": { "question": "How often should I use this?", "answer": "<p>Pending final how-to-use copy from formulation data.</p>" } },
+      { "type": "question", "settings": { "question": "Can I use it with actives?", "answer": "<p>Pending final how-to-use copy from formulation data.</p>" } },
+      { "type": "question", "settings": { "question": "What's your return policy?", "answer": "<p>See our <a href=\"/pages/returns\">Returns page</a> for full details.</p>" } }
+    ]
+  },
+  "presets": [{ "name": "FAQ" }]
+}
+{% endschema %}

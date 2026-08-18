@@ -1,0 +1,17 @@
+<div class="announcement-bar" role="note">
+  {%- if section.settings.link != blank -%}
+    <a href="{{ section.settings.link }}">{{ section.settings.message }}</a>
+  {%- else -%}
+    <p>{{ section.settings.message }}</p>
+  {%- endif -%}
+</div>
+
+{% schema %}
+{
+  "name": "Announcement bar",
+  "settings": [
+    { "type": "text", "id": "message", "label": "Message", "default": "Free shipping over $50" },
+    { "type": "url", "id": "link", "label": "Link (optional)" }
+  ]
+}
+{% endschema %}

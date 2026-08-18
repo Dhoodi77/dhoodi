@@ -1,0 +1,56 @@
+<section class="routine-builder container">
+  {%- if section.settings.heading != blank -%}<h2>{{ section.settings.heading }}</h2>{%- endif -%}
+  <ol class="routine-builder__steps">
+    {%- for block in section.blocks -%}
+      {%- assign step = block.settings.step -%}
+      <li class="routine-builder__step" {{ block.shopify_attributes }}>
+        <span class="routine-builder__step-number">{{ forloop.index }}</span>
+        {%- if step != blank -%}
+          {%- comment -%} Content pulled from the routine_step_definition metaobject so it's editable without touching code {%- endcomment -%}
+          {%- if step.icon != blank -%}{{ step.icon.value | image_url: width: 48 | image_tag: loading: 'lazy', alt: '' }}{%- endif -%}
+          <h3>{{ step.title.value }}</h3>
+          <p>{{ step.description.value }}</p>
+          {%- if block.settings.product != blank -%}
+            <a href="{{ block.settings.product.url }}" class="routine-builder__product-link">
+              {{ block.settings.product.featured_media | image_url: width: 200 | image_tag: loading: 'lazy', alt: block.settings.product.title }}
+              <span>{{ block.settings.product.title }}</span>
+            </a>
+          {%- endif -%}
+        {%- else -%}
+          <h3>{{ block.settings.fallback_title }}</h3>
+          <p>{{ block.settings.fallback_text }}</p>
+        {%- endif -%}
+      </li>
+    {%- endfor -%}
+  </ol>
+</section>
+
+{% schema %}
+{
+  "name": "Routine builder",
+  "settings": [
+    { "type": "text", "id": "heading", "label": "Heading", "default": "Build your routine" }
+  ],
+  "blocks": [
+    {
+      "type": "step",
+      "name": "Routine step",
+      "settings": [
+        { "type": "metaobject", "id": "step", "label": "Step content (metaobject)", "metaobject_type": "routine_step_definition" },
+        { "type": "product", "id": "product", "label": "Linked product" },
+        { "type": "text", "id": "fallback_title", "label": "Fallback title (if no metaobject set)", "default": "Cleanse" },
+        { "type": "textarea", "id": "fallback_text", "label": "Fallback text" }
+      ]
+    }
+  ],
+  "default": {
+    "blocks": [
+      { "type": "step", "settings": { "fallback_title": "Cleanse" } },
+      { "type": "step", "settings": { "fallback_title": "Treat" } },
+      { "type": "step", "settings": { "fallback_title": "Hydrate" } },
+      { "type": "step", "settings": { "fallback_title": "Protect" } }
+    ]
+  },
+  "presets": [{ "name": "Routine builder" }]
+}
+{% endschema %}

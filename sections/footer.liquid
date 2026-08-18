@@ -1,0 +1,80 @@
+<footer class="site-footer">
+  <div class="container site-footer__grid">
+    <div class="site-footer__brand">
+      {%- if section.settings.logo != blank -%}
+        {{ section.settings.logo | image_url: width: 200 | image_tag }}
+      {%- else -%}
+        <p class="site-footer__wordmark">{{ shop.name }}</p>
+      {%- endif -%}
+      {%- if section.settings.blurb != blank -%}<p>{{ section.settings.blurb }}</p>{%- endif -%}
+    </div>
+
+    {%- for block in section.blocks -%}
+      {%- case block.type -%}
+        {%- when 'link_list' -%}
+          <div class="site-footer__col" {{ block.shopify_attributes }}>
+            <h3>{{ block.settings.title }}</h3>
+            <ul>
+              {%- for link in block.settings.menu.links -%}
+                <li><a href="{{ link.url }}">{{ link.title }}</a></li>
+              {%- endfor -%}
+            </ul>
+          </div>
+        {%- when 'newsletter' -%}
+          <div class="site-footer__col" {{ block.shopify_attributes }}>
+            <h3>{{ block.settings.title }}</h3>
+            {%- form 'customer', id: 'FooterNewsletter' -%}
+              <input type="hidden" name="contact[tags]" value="newsletter">
+              <label for="FooterEmail" class="sr-only">Email</label>
+              <input type="email" name="contact[email]" id="FooterEmail" placeholder="Email address" required>
+              <button type="submit">{{ 'newsletter.button_label' | t: default: 'Subscribe' }}</button>
+            {%- endform -%}
+          </div>
+      {%- endcase -%}
+    {%- endfor -%}
+  </div>
+
+  <div class="container site-footer__legal">
+    <p>&copy; {{ 'now' | date: '%Y' }} {{ shop.name }}. {{ section.settings.legal_note }}</p>
+    <div class="site-footer__payment-icons">
+      {%- for type in shop.enabled_payment_types -%}
+        {{ type | payment_type_svg_tag: class: 'payment-icon' }}
+      {%- endfor -%}
+    </div>
+  </div>
+</footer>
+
+{% schema %}
+{
+  "name": "Footer",
+  "settings": [
+    { "type": "image_picker", "id": "logo", "label": "Logo" },
+    { "type": "textarea", "id": "blurb", "label": "Short blurb" },
+    { "type": "text", "id": "legal_note", "label": "Legal note", "default": "All rights reserved." }
+  ],
+  "blocks": [
+    {
+      "type": "link_list",
+      "name": "Link list",
+      "settings": [
+        { "type": "text", "id": "title", "label": "Heading", "default": "Help" },
+        { "type": "link_list", "id": "menu", "label": "Menu" }
+      ]
+    },
+    {
+      "type": "newsletter",
+      "name": "Newsletter signup",
+      "settings": [
+        { "type": "text", "id": "title", "label": "Heading", "default": "Join the list" }
+      ]
+    }
+  ],
+  "default": {
+    "blocks": [
+      { "type": "link_list", "settings": { "title": "Shop" } },
+      { "type": "link_list", "settings": { "title": "Help" } },
+      { "type": "newsletter", "settings": { "title": "Join the list" } }
+    ]
+  }
+}
+{% endschema %}

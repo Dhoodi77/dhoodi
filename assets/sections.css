@@ -1,0 +1,3 @@
+/* Section-scoped overrides / tweaks that don't belong in base.css go here.
+   Kept separate so section-level theme-editor CSS injections (if added later)
+   don't require touching base.css. */

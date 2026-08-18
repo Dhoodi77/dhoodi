@@ -1,0 +1,17 @@
+{%- comment -%}
+  Accepts: product (object) OR variant (object)
+  Currency/locale formatting is handled entirely by Shopify's `money` filters
+  and the active Market — never hardcode a currency symbol here.
+{%- endcomment -%}
+{%- liquid
+  assign target = variant | default: product.selected_or_first_available_variant
+-%}
+<div class="price">
+  {%- if target.compare_at_price > target.price -%}
+    <span class="price__compare-at"><s>{{ target.compare_at_price | money }}</s></span>
+    <span class="price__sale">{{ target.price | money }}</span>
+    <span class="sr-only">{{ 'products.product.price.regular_price' | t: default: 'Regular price' }} {{ target.compare_at_price | money }}</span>
+  {%- else -%}
+    <span class="price__regular">{{ target.price | money }}</span>
+  {%- endif -%}
+</div>

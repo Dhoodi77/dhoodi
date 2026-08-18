@@ -1,0 +1,43 @@
+<section class="cart-page container">
+  <h1>{{ 'cart.general.title' | t: default: 'Your cart' }}</h1>
+
+  {%- if cart.item_count == 0 -%}
+    <p>Your cart is empty. <a href="{{ routes.all_products_collection_url }}">Continue shopping</a></p>
+  {%- else -%}
+    <form action="{{ routes.cart_url }}" method="post" id="CartForm">
+      <table class="cart-page__table">
+        <thead>
+          <tr><th scope="col">Product</th><th scope="col">Price</th><th scope="col">Quantity</th><th scope="col">Total</th></tr>
+        </thead>
+        <tbody>
+          {%- for item in cart.items -%}
+            <tr>
+              <td>
+                <a href="{{ item.url }}">{{ item.image | image_url: width: 160 | image_tag: loading: 'lazy', alt: item.title }}</a>
+                <a href="{{ item.url }}">{{ item.product.title }}</a>
+                {%- if item.variant.title != 'Default Title' -%}<p>{{ item.variant.title }}</p>{%- endif -%}
+              </td>
+              <td>{{ item.original_price | money }}</td>
+              <td>
+                <label class="sr-only" for="Qty-{{ forloop.index }}">Quantity</label>
+                <input type="number" id="Qty-{{ forloop.index }}" name="updates[]" value="{{ item.quantity }}" min="0">
+              </td>
+              <td>{{ item.final_line_price | money }}</td>
+            </tr>
+          {%- endfor -%}
+        </tbody>
+      </table>
+
+      <div class="cart-page__summary">
+        <p>Subtotal: {{ cart.total_price | money }}</p>
+        <p class="cart-page__note">Taxes and shipping calculated at checkout.</p>
+        <button type="submit" name="update" class="btn">Update cart</button>
+        <button type="submit" name="checkout" class="btn btn--primary">Checkout</button>
+      </div>
+    </form>
+  {%- endif -%}
+</section>
+
+{% schema %}
+{ "name": "Cart page", "settings": [] }
+{% endschema %}

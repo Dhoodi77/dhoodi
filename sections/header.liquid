@@ -1,0 +1,77 @@
+<header class="site-header{% if section.settings.sticky %} site-header--sticky{% endif %}" data-header>
+  <div class="site-header__inner container">
+    <button class="site-header__menu-toggle" aria-expanded="false" aria-controls="MobileNav" data-mobile-nav-toggle>
+      <span class="sr-only">{{ 'accessibility.menu' | t: default: 'Menu' }}</span>
+      <span class="icon-bar"></span><span class="icon-bar"></span><span class="icon-bar"></span>
+    </button>
+
+    <a href="{{ routes.root_url }}" class="site-header__logo" aria-label="{{ shop.name }}">
+      {%- if section.settings.logo != blank -%}
+        {{ section.settings.logo | image_url: width: 320 | image_tag: loading: 'eager', widths: '160,240,320' }}
+      {%- else -%}
+        <span class="site-header__wordmark">{{ shop.name }}</span>
+      {%- endif -%}
+    </a>
+
+    <nav class="site-header__nav" aria-label="Primary">
+      <ul>
+        {%- for link in section.settings.main_menu.links -%}
+          <li>
+            <a href="{{ link.url }}"{% if link.active %} aria-current="page"{% endif %}>{{ link.title }}</a>
+            {%- if link.links.size > 0 -%}
+              <ul class="site-header__submenu">
+                {%- for child in link.links -%}
+                  <li><a href="{{ child.url }}">{{ child.title }}</a></li>
+                {%- endfor -%}
+              </ul>
+            {%- endif -%}
+          </li>
+        {%- endfor -%}
+      </ul>
+    </nav>
+
+    <div class="site-header__actions">
+      <button class="site-header__icon-btn" data-search-toggle aria-expanded="false" aria-controls="HeaderSearch">
+        <span class="sr-only">{{ 'general.search.title' | t: default: 'Search' }}</span>
+        {% render 'icon-search' %}
+      </button>
+      <a href="{{ routes.account_url }}" class="site-header__icon-btn">
+        <span class="sr-only">{{ 'customer.account_fallback' | t: default: 'Account' }}</span>
+        {% render 'icon-account' %}
+      </a>
+      <button class="site-header__icon-btn" data-cart-toggle aria-expanded="false" aria-controls="CartDrawer">
+        <span class="sr-only">{{ 'cart.general.title' | t: default: 'Cart' }}</span>
+        {% render 'icon-cart' %}
+        <span class="site-header__cart-count" data-cart-count>{{ cart.item_count }}</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="site-header__search" id="HeaderSearch" hidden>
+    <form action="{{ routes.search_url }}" method="get" role="search" class="container">
+      <input type="search" name="q" placeholder="Search products" aria-label="Search products" value="{{ search.terms | escape }}">
+      <input type="hidden" name="type" value="product">
+    </form>
+  </div>
+</header>
+
+<div class="mobile-nav" id="MobileNav" hidden>
+  <ul>
+    {%- for link in section.settings.main_menu.links -%}
+      <li><a href="{{ link.url }}">{{ link.title }}</a></li>
+    {%- endfor -%}
+  </ul>
+</div>
+
+{% render 'cart-drawer' %}
+
+{% schema %}
+{
+  "name": "Header",
+  "settings": [
+    { "type": "image_picker", "id": "logo", "label": "Logo" },
+    { "type": "link_list", "id": "main_menu", "label": "Menu", "default": "main-menu" },
+    { "type": "checkbox", "id": "sticky", "label": "Sticky header", "default": true }
+  ]
+}
+{% endschema %}

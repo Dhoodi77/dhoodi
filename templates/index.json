@@ -1,0 +1,25 @@
+{
+  "sections": {
+    "hero": { "type": "hero" },
+    "trust-bar": { "type": "trust-bar" },
+    "benefit-grid": { "type": "benefit-grid" },
+    "bestsellers": {
+      "type": "bestsellers",
+      "settings": { "heading": "Best sellers" }
+    },
+    "routine-builder": { "type": "routine-builder" },
+    "ugc-grid": { "type": "ugc-grid" },
+    "bundle-block": { "type": "bundle-block" },
+    "faq-accordion": { "type": "faq-accordion" }
+  },
+  "order": [
+    "hero",
+    "trust-bar",
+    "benefit-grid",
+    "bestsellers",
+    "routine-builder",
+    "ugc-grid",
+    "bundle-block",
+    "faq-accordion"
+  ]
+}

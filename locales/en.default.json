@@ -1,0 +1,21 @@
+{
+  "general": {
+    "search": { "title": "Search" },
+    "404": { "title": "Page not found", "content": "The page you're looking for doesn't exist." }
+  },
+  "accessibility": {
+    "skip_to_content": "Skip to content",
+    "menu": "Menu"
+  },
+  "customer": { "account_fallback": "Account" },
+  "cart": { "general": { "title": "Your cart" } },
+  "newsletter": { "button_label": "Subscribe" },
+  "products": {
+    "product": {
+      "add_to_cart": "Add to cart",
+      "sold_out": "Sold out",
+      "on_sale": "Sale",
+      "price": { "regular_price": "Regular price" }
+    }
+  }
+}
