@@ -96,7 +96,10 @@ def create_server(app_state: App | None = None) -> FastAPI:
             "loops": {
                 "discovery": state.db.kv_get("loop_ok_discovery"),
                 "monitor": state.db.kv_get("loop_ok_monitor"),
+                "smartmoney": state.db.kv_get("loop_ok_smartmoney"),
             },
+            "smartmoney_scanner": state.smartmoney_scanner is not None,
+            "smartmoney_last_scan": state.db.kv_get("smartmoney_last_scan"),
         }
 
     @api.get("/api/positions", dependencies=[Depends(check_auth)])

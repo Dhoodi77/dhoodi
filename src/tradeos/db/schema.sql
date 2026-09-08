@@ -233,6 +233,23 @@ CREATE TABLE IF NOT EXISTS memories (
     UNIQUE (layer, key)
 );
 
+CREATE TABLE IF NOT EXISTS wallet_swaps (
+    id INTEGER PRIMARY KEY,
+    chain TEXT NOT NULL,
+    wallet TEXT NOT NULL,
+    signature TEXT NOT NULL,
+    token_mint TEXT NOT NULL,
+    direction TEXT NOT NULL,           -- buy | sell (of token_mint, vs SOL)
+    token_amount REAL,
+    sol_amount REAL,                   -- SOL paid (buy) or received (sell)
+    counter_mint TEXT,
+    block_time REAL,
+    recorded_at REAL NOT NULL,
+    UNIQUE (signature, wallet, token_mint)
+);
+CREATE INDEX IF NOT EXISTS idx_wallet_swaps_token ON wallet_swaps (chain, token_mint, block_time);
+CREATE INDEX IF NOT EXISTS idx_wallet_swaps_wallet ON wallet_swaps (chain, wallet, block_time);
+
 CREATE TABLE IF NOT EXISTS alerts (
     id INTEGER PRIMARY KEY,
     priority TEXT NOT NULL,            -- critical | high | info

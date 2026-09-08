@@ -65,11 +65,26 @@ chain id).
 | `TRADEOS_EXIT_TAKE_PROFIT_PCT` | 30 |
 | `TRADEOS_EXIT_MAX_HOLD_HOURS` | 24 |
 
-## Optional integrations (inactive until set)
+## Helius indexer (Solana intelligence)
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `TRADEOS_HELIUS_API_KEY` | — | enables the Helius provider (DAS holder distribution, parsed swap history) and the smart-money scanner. Key from https://dev.helius.xyz |
+| `TRADEOS_SMARTMONEY_SCAN_INTERVAL_S` | 600 | scanner cadence |
+| `TRADEOS_SMARTMONEY_MAX_WALLETS_PER_SCAN` | 8 | wallets analyzed per pass (rate-limit budget) |
+| `TRADEOS_SMARTMONEY_MIN_WALLET_TRADES` | 3 | completed SOL round trips required before a wallet gets scored |
+| `TRADEOS_SMARTMONEY_SCORE_THRESHOLD` | 65 | effective score at which a wallet counts as smart money in token signals |
+| `TRADEOS_WHALE_SOL_THRESHOLD` | 50 | SOL size at which a swap counts toward the whale flow signal |
+
+With the key set, opportunities get real `smart_money_score` and
+`whale_score` values derived from recorded swaps; without it those stay
+null and scoring uses its neutral default.
+
+## Other optional integrations (inactive until set)
 
 | Variable | Activates |
 |---|---|
-| `TRADEOS_RPC_SOLANA`, `TRADEOS_RPC_ETHEREUM`, `TRADEOS_RPC_BASE`, `TRADEOS_RPC_BSC`, `TRADEOS_RPC_ARBITRUM`, `TRADEOS_RPC_POLYGON` | on-chain agent holder/transfer analysis |
+| `TRADEOS_RPC_SOLANA`, `TRADEOS_RPC_ETHEREUM`, `TRADEOS_RPC_BASE`, `TRADEOS_RPC_BSC`, `TRADEOS_RPC_ARBITRUM`, `TRADEOS_RPC_POLYGON` | on-chain agent holder/transfer analysis (`TRADEOS_RPC_SOLANA` is ignored when the Helius key is set — Helius provides the RPC) |
 | `TRADEOS_SEARCH_API_KEY` | web agent |
 | `TRADEOS_X_BEARER_TOKEN`, `TRADEOS_REDDIT_CLIENT_ID`/`_SECRET` | social monitoring |
 

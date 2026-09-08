@@ -26,6 +26,7 @@ _SECRET_PATTERNS = [
     re.compile(r"(?<![0-9a-fA-F])[0-9a-fA-F]{64}(?![0-9a-fA-F])"),
     re.compile(r"[1-9A-HJ-NP-Za-km-z]{85,90}"),  # base58 solana keypair length
     re.compile(r"(?i)bearer\s+[A-Za-z0-9\-._~+/]{16,}"),
+    re.compile(r"(?i)api[-_]key=[A-Za-z0-9\-]{8,}"),  # key-in-URL (Helius etc.)
 ]
 
 

@@ -19,7 +19,9 @@ code, enforced regardless of what any agent says.
 | 9-agent pipeline (research, on-chain, financial, risk, critic, executive, planning, web, coding) | working; LLM-backed with deterministic fallback |
 | DexScreener provider (discovery, pairs, rate limiting, retries) | implemented; needs open egress to `api.dexscreener.com` |
 | Chain providers (EVM JSON-RPC + Solana RPC) | implemented; need `TRADEOS_RPC_<CHAIN>` endpoints |
-| Smart-money wallet reputation (scoring, decay, classification) | working, tested; needs indexer data to score real wallets |
+| Helius indexer (holder distribution, parsed swap history, rate limiting) | implemented, fixture-tested; needs `TRADEOS_HELIUS_API_KEY` + open egress |
+| Smart-money discovery (wallet scan → round-trip P&L → score → decay) | working, tested end to end against fixtures |
+| Token smart-money / whale flow signals feeding opportunity scoring and the critic | working, tested |
 | Position monitor (stop-loss / take-profit / max-hold) + post-trade reviews | working, tested |
 | Mobile-first web dashboard + control API (token auth, rate limiting) | working, smoke-tested |
 | Web agent (X/Reddit/search) | scaffold; requires API credentials, fails honest instead of fabricating |

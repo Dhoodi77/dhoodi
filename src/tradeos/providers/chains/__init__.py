@@ -5,12 +5,16 @@ arbitrum, polygon) share one JSON-RPC implementation parameterized by RPC
 URL; Solana has its own. Providers require a configured RPC endpoint
 (TRADEOS_RPC_<CHAIN> env var); without one they report unavailable and the
 on-chain agent degrades gracefully instead of inventing data.
+
+Solana upgrades automatically to the Helius indexer provider (full holder
+distribution + parsed swap history) when TRADEOS_HELIUS_API_KEY is set.
 """
 from __future__ import annotations
 
 import os
 
 from tradeos.providers.chains.evm import EvmProvider
+from tradeos.providers.chains.helius import HeliusProvider
 from tradeos.providers.chains.solana import SolanaProvider
 
 EVM_CHAINS = ["ethereum", "base", "bsc", "arbitrum", "polygon"]
@@ -22,5 +26,9 @@ def build_chain_providers() -> dict[str, object]:
     for chain in EVM_CHAINS:
         rpc = os.environ.get(f"TRADEOS_RPC_{chain.upper()}")
         providers[chain] = EvmProvider(chain, rpc)
-    providers["solana"] = SolanaProvider(os.environ.get("TRADEOS_RPC_SOLANA"))
+    helius_key = os.environ.get("TRADEOS_HELIUS_API_KEY")
+    if helius_key:
+        providers["solana"] = HeliusProvider(helius_key)
+    else:
+        providers["solana"] = SolanaProvider(os.environ.get("TRADEOS_RPC_SOLANA"))
     return providers

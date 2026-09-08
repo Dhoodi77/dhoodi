@@ -22,12 +22,14 @@ logger = logging.getLogger(__name__)
 
 class Scheduler:
     def __init__(self, settings: Settings, db: Database, market: DexScreenerProvider,
-                 pipeline: OpportunityPipeline, monitor: PositionMonitor):
+                 pipeline: OpportunityPipeline, monitor: PositionMonitor,
+                 smartmoney_scanner=None):
         self.settings = settings
         self.db = db
         self.market = market
         self.pipeline = pipeline
         self.monitor = monitor
+        self.smartmoney_scanner = smartmoney_scanner
         self._tasks: list[asyncio.Task] = []
         self._stopping = asyncio.Event()
 
@@ -39,6 +41,10 @@ class Scheduler:
             asyncio.create_task(self._loop("monitor", self._monitor_tick,
                                            self.settings.monitor_interval_s)),
         ]
+        if self.smartmoney_scanner is not None:
+            self._tasks.append(asyncio.create_task(
+                self._loop("smartmoney", self._smartmoney_tick,
+                           self.settings.smartmoney_scan_interval_s)))
         self.db.system_event("scheduler_started",
                              f"mode={self.settings.mode.value}")
 
@@ -100,3 +106,8 @@ class Scheduler:
         closed = await self.monitor.check_all()
         if closed:
             logger.info("monitor closed %d positions", closed)
+
+    async def _smartmoney_tick(self) -> None:
+        if self.settings.mode == Mode.DEVELOPMENT:
+            return
+        await self.smartmoney_scanner.scan()

@@ -34,6 +34,13 @@ class CriticAgent(BaseAgent):
             objections.append(f"aggregate risk score {score.risk} is material")
         if pair.volume_5m == 0 and pair.volume_1h > 0:
             objections.append("momentum stalled: zero volume in the last 5 minutes")
+        if score.whale is not None and score.whale < 40:
+            objections.append(
+                f"whale flows show net distribution (whale score {score.whale})")
+        if score.smart_money is not None and score.smart_money < 40:
+            objections.append(
+                f"tracked smart-money wallets are net sellers "
+                f"(smart-money score {score.smart_money})")
         return objections
 
     async def analyze(self, opportunity_id: str, pair: PairData,

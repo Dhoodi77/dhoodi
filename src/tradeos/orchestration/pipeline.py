@@ -95,22 +95,26 @@ class OpportunityPipeline:
         set_correlation_id(opp_id)
         self._store_snapshot(pair)
 
-        smart = self.reputation.current_score(pair.chain, pair.token_address)
+        smart, whale = self.reputation.token_signals(
+            pair.chain, pair.token_address,
+            smart_threshold=self.settings.smartmoney_score_threshold,
+            whale_sol_threshold=self.settings.whale_sol_threshold,
+        )
         score = score_opportunity(
             pair, self.scoring,
             self.settings.min_token_age_hours, self.settings.min_liquidity_usd,
-            smart_money_score=None if smart == 50.0 else smart,
+            smart_money_score=smart, whale_score=whale,
         )
 
         now = time.time()
         self.db.execute(
             "INSERT INTO opportunities (id, chain, token_address, pair_address, symbol, "
-            "source, status, momentum_score, smart_money_score, risk_score, overall_score, "
-            "scoring_version, data_snapshot_json, created_at, updated_at) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "source, status, momentum_score, smart_money_score, whale_score, risk_score, "
+            "overall_score, scoring_version, data_snapshot_json, created_at, updated_at) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (opp_id, pair.chain, pair.token_address, pair.pair_address, pair.symbol,
              "dexscreener_discovery", "analyzing", score.momentum, score.smart_money,
-             score.risk, score.overall, score.version,
+             score.whale, score.risk, score.overall, score.version,
              json.dumps(pair.raw, default=str), now, now),
         )
         self.db.audit("pipeline", "opportunity_detected", opp_id,

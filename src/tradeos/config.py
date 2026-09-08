@@ -98,6 +98,13 @@ class Settings(BaseSettings):
     discovery_interval_s: int = 120
     monitor_interval_s: int = 30
 
+    # Smart-money scanner (active only when TRADEOS_HELIUS_API_KEY is set)
+    smartmoney_scan_interval_s: int = 600
+    smartmoney_max_wallets_per_scan: int = 8
+    smartmoney_min_wallet_trades: int = 3
+    smartmoney_score_threshold: float = 65.0
+    whale_sol_threshold: float = 50.0
+
     # Live trading gate
     live_trading_confirm: str = ""
 

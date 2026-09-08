@@ -85,6 +85,63 @@ class WalletReputationStore:
             return NEUTRAL_SCORE
         return decayed_score(row["score"], row["scored_at"])
 
+    def effective_scores(self, chain: str, addresses: list[str]) -> dict[str, float]:
+        """Latest decayed score per wallet; wallets never scored are absent."""
+        if not addresses:
+            return {}
+        placeholders = ",".join("?" for _ in addresses)
+        rows = self.db.query(
+            f"SELECT address, MAX(scored_at) AS scored_at, score FROM wallet_scores "
+            f"WHERE chain = ? AND address IN ({placeholders}) GROUP BY address",
+            (chain, *addresses))
+        return {r["address"]: decayed_score(r["score"], r["scored_at"]) for r in rows}
+
+    def token_signals(self, chain: str, token_mint: str, since_hours: float = 24.0,
+                      smart_threshold: float = 65.0,
+                      whale_sol_threshold: float = 50.0,
+                      now: float | None = None) -> tuple[float | None, float | None]:
+        """(smart_money_score, whale_score) for a token, both 0-100 or None.
+
+        Derived only from swaps actually recorded in wallet_swaps:
+          smart: 50 baseline, +15 per distinct smart-money buyer, -10 per
+                 distinct smart-money seller; None when no scored wallet
+                 touched the token in the window.
+          whale: buy/sell balance of swaps >= whale_sol_threshold SOL;
+                 None when no whale-sized swaps occurred.
+        """
+        now = now or time.time()
+        rows = self.db.query(
+            "SELECT wallet, direction, sol_amount FROM wallet_swaps "
+            "WHERE chain = ? AND token_mint = ? AND block_time >= ?",
+            (chain, token_mint, now - since_hours * 3600))
+        if not rows:
+            return None, None
+
+        def _clamp(v: float) -> float:
+            return round(max(0.0, min(100.0, v)), 2)
+
+        scores = self.effective_scores(chain, list({r["wallet"] for r in rows}))
+        smart_buyers = {r["wallet"] for r in rows if r["direction"] == "buy"
+                        and scores.get(r["wallet"], 0) >= smart_threshold}
+        smart_sellers = {r["wallet"] for r in rows if r["direction"] == "sell"
+                         and scores.get(r["wallet"], 0) >= smart_threshold}
+        smart = None
+        if any(r["wallet"] in scores for r in rows):
+            smart = _clamp(NEUTRAL_SCORE + 15 * len(smart_buyers)
+                           - 10 * len(smart_sellers))
+
+        whale_buy = sum(r["sol_amount"] or 0 for r in rows
+                        if r["direction"] == "buy"
+                        and (r["sol_amount"] or 0) >= whale_sol_threshold)
+        whale_sell = sum(r["sol_amount"] or 0 for r in rows
+                         if r["direction"] == "sell"
+                         and (r["sol_amount"] or 0) >= whale_sol_threshold)
+        whale = None
+        if whale_buy + whale_sell > 0:
+            whale = _clamp(NEUTRAL_SCORE
+                           + 50 * (whale_buy - whale_sell) / (whale_buy + whale_sell))
+        return smart, whale
+
     def tracked_smart_money(self, min_score: float = 65.0) -> list[dict]:
         rows = self.db.query(
             "SELECT chain, address, MAX(scored_at) AS scored_at, score, classification "

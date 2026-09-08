@@ -21,12 +21,12 @@ src/tradeos/
 ├── llm/                 Anthropic client, role→model routing, JSON parsing
 ├── agents/              9 agents (reasoning layer)
 ├── orchestration/       pipeline, position monitor, scheduler, recovery
-├── providers/           DexScreener + EVM/Solana RPC providers
+├── providers/           DexScreener + EVM/Solana RPC + Helius indexer
 ├── strategies/          momentum engine, versioned opportunity scoring
 ├── risk/                policy, deterministic engine, kill switch
 ├── execution/           instruction model, gateway, paper engine, live stub
 ├── portfolio/           cash ledger, positions, P&L, drawdown state
-├── wallets/             smart-money reputation (score, decay, classify)
+├── wallets/             smart-money reputation, round-trip analysis, scanner
 ├── memory/              user/market/trading/agent memory layers
 ├── learning/            post-trade reviews, versioned strategies
 ├── api/                 FastAPI server, auth, control endpoints
@@ -73,6 +73,36 @@ trade is fully reconstructable: snapshot → verdicts → risk events → trades
 
 Configurable via `TRADEOS_MODEL_*`. With no API key the agents run pure
 heuristics — the pipeline works end to end without an LLM.
+
+## Smart-money discovery (Helius, Solana)
+
+With `TRADEOS_HELIUS_API_KEY` set, a scanner loop runs every
+`TRADEOS_SMARTMONEY_SCAN_INTERVAL_S`:
+
+```
+tokens the system watches (open positions + recent opportunities)
+  ─► Helius parsed swap history per token (SOL<->token swaps only;
+     ambiguous routes skipped, never approximated)
+  ─► active wallets extracted, stale-scored ones re-queued
+  ─► per-wallet swap history ─► SOL round trips (average cost basis;
+     sells with no observed buy are ignored — conservative by design)
+  ─► WalletPerformance ─► smart-money score (sample-size confidence,
+     14-day decay toward neutral) ─► wallet_scores
+```
+
+Recorded swaps also produce two token-level signals consumed by the
+scoring engine and the critic:
+
+- **smart-money score**: 50 baseline, +15 per distinct smart-money buyer
+  in 24h, −10 per smart-money seller; null when no scored wallet touched
+  the token (never faked).
+- **whale score**: buy/sell balance of swaps ≥ `TRADEOS_WHALE_SOL_THRESHOLD`
+  SOL; null when no whale-sized flow. Whale selling (< 40) becomes a
+  critic objection — a whale transaction is never assumed bullish.
+
+Holder distribution for Solana upgrades from the RPC top-20 approximation
+to full DAS `getTokenAccounts` pagination (top-10/top-20 concentration,
+holder count), feeding the on-chain agent's concentration checks.
 
 ## Security model
 

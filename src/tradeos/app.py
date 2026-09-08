@@ -25,11 +25,13 @@ from tradeos.orchestration.pipeline import OpportunityPipeline
 from tradeos.orchestration.scheduler import Scheduler
 from tradeos.portfolio.accounting import PortfolioAccounting
 from tradeos.providers.chains import build_chain_providers
+from tradeos.providers.chains.helius import HeliusProvider
 from tradeos.providers.dexscreener import DexScreenerProvider
 from tradeos.risk.engine import RiskEngine
 from tradeos.risk.killswitch import KillSwitch
 from tradeos.strategies.scoring import ScoringConfig
 from tradeos.wallets.reputation import WalletReputationStore
+from tradeos.wallets.scanner import SmartMoneyScanner
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +52,7 @@ class App:
     memory: MemoryStore
     reputation: WalletReputationStore
     agents: dict
+    smartmoney_scanner: SmartMoneyScanner | None = None
 
 
 def build_app(settings: Settings | None = None) -> App:
@@ -76,6 +79,14 @@ def build_app(settings: Settings | None = None) -> App:
     memory = MemoryStore(db)
     reputation = WalletReputationStore(db)
 
+    scanner = None
+    solana_provider = chain_providers.get("solana")
+    if isinstance(solana_provider, HeliusProvider):
+        scanner = SmartMoneyScanner(settings, db, solana_provider, reputation)
+        logger.info("Helius indexer configured: smart-money scanner enabled")
+    else:
+        logger.info("no TRADEOS_HELIUS_API_KEY: smart-money scanner disabled")
+
     agents = {
         "research": ResearchAgent(settings, db, llm),
         "onchain": OnChainAgent(settings, db, llm, chain_providers),
@@ -97,7 +108,9 @@ def build_app(settings: Settings | None = None) -> App:
         scoring_config,
     )
     monitor = PositionMonitor(settings, db, market, gateway, llm)
-    scheduler = Scheduler(settings, db, market, pipeline, monitor)
+    scheduler = Scheduler(settings, db, market, pipeline, monitor,
+                          smartmoney_scanner=scanner)
 
     return App(settings, db, kill_switch, risk_engine, accounting, gateway,
-               market, pipeline, monitor, scheduler, llm, memory, reputation, agents)
+               market, pipeline, monitor, scheduler, llm, memory, reputation,
+               agents, scanner)
