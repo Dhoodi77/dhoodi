@@ -47,6 +47,7 @@ class PositionMonitor:
     async def check_all(self) -> int:
         """One monitoring sweep. Returns the number of positions closed."""
         closed = 0
+        self.gateway.accounting.snapshot_equity()
         if self.settings.mode.value == "live":
             try:
                 reconciled = await self.gateway.live_engine.reconcile_pending()

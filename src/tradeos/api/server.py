@@ -107,6 +107,100 @@ def create_server(app_state: App | None = None) -> FastAPI:
                 state.db.kv_get("provider_health") or "{}"),
         }
 
+    @api.get("/api/desk", dependencies=[Depends(check_auth)])
+    async def desk():
+        """Everything the desk view needs in one round trip. All values come
+        from the database — nothing here is simulated."""
+        acct = state.accounting
+        allowed, problems = state.risk_engine.trading_allowed()
+        started = float(state.db.kv_get("last_startup", "0") or 0)
+
+        agent_rows = state.db.query(
+            "SELECT agent, COUNT(*) AS decisions, "
+            "SUM(CASE WHEN verdict IN ('buy','approve') THEN 1 ELSE 0 END) AS bullish, "
+            "SUM(CASE WHEN verdict = 'reject' THEN 1 ELSE 0 END) AS rejects, "
+            "MAX(created_at) AS last_decision_at FROM agent_decisions GROUP BY agent")
+        stats_by_agent = {r["agent"]: r for r in agent_rows}
+        last_verdicts = {r["agent"]: r for r in state.db.query(
+            "SELECT agent, verdict, reasoning, created_at FROM agent_decisions "
+            "WHERE id IN (SELECT MAX(id) FROM agent_decisions GROUP BY agent)")}
+        agents = []
+        for name in state.agents:
+            hb_raw = state.db.kv_get(f"agent_hb_{name}")
+            hb = json.loads(hb_raw) if hb_raw else None
+            stat = stats_by_agent.get(name, {})
+            last = last_verdicts.get(name, {})
+            agents.append({
+                "name": name,
+                "heartbeat_at": (hb or {}).get("ts"),
+                "task": (hb or {}).get("task", ""),
+                "decisions": stat.get("decisions", 0),
+                "bullish": stat.get("bullish", 0),
+                "rejects": stat.get("rejects", 0),
+                "last_verdict": last.get("verdict"),
+                "last_reasoning": (last.get("reasoning") or "")[:140],
+                "last_decision_at": last.get("created_at"),
+            })
+
+        pipeline_counts = {r["status"]: r["n"] for r in state.db.query(
+            "SELECT status, COUNT(*) AS n FROM opportunities GROUP BY status")}
+        risk_counts = {r["kind"]: r["n"] for r in state.db.query(
+            "SELECT kind, COUNT(*) AS n FROM risk_events GROUP BY kind")}
+        total_decisions = sum(a["decisions"] for a in agents)
+
+        activity = state.db.query(
+            "SELECT actor, action, opportunity_id, created_at FROM audit_log "
+            "ORDER BY id DESC LIMIT 40")
+        positions = state.db.query(
+            "SELECT * FROM positions WHERE status = 'open' ORDER BY opened_at DESC")
+        for p in positions:
+            last_price = p["last_price_usd"] or p["entry_price_usd"]
+            p["unrealized_pnl_usd"] = round(
+                (last_price - p["entry_price_usd"]) * p["quantity"], 4)
+        closed = state.db.query(
+            "SELECT symbol, chain, exit_reason, realized_pnl_usd, closed_at "
+            "FROM positions WHERE status = 'closed' ORDER BY closed_at DESC LIMIT 8")
+        opportunities = state.db.query(
+            "SELECT id, chain, symbol, token_address, status, momentum_score, "
+            "smart_money_score, whale_score, risk_score, overall_score, created_at "
+            "FROM opportunities ORDER BY created_at DESC LIMIT 20")
+        alerts = state.db.query(
+            "SELECT priority, title, body, created_at FROM alerts "
+            "ORDER BY created_at DESC LIMIT 12")
+        starting = settings.paper_starting_balance_usd
+
+        return {
+            "mode": settings.mode.value,
+            "kill_switch": state.kill_switch.is_active(),
+            "trading_allowed": allowed,
+            "trading_problems": problems,
+            "llm_available": state.llm.available,
+            "uptime_s": (time.time() - started) if started else None,
+            "equity_usd": round(acct.equity_usd(), 2),
+            "cash_usd": round(acct.cash_usd(), 2),
+            "exposure_usd": round(acct.exposure_usd(), 2),
+            "daily_pnl_usd": round(acct.daily_pnl_usd(), 2),
+            "total_pnl_usd": round(acct.realized_pnl_usd()
+                                   + acct.unrealized_pnl_usd(), 2),
+            "starting_balance_usd": starting,
+            "equity_history": acct.equity_history(hours=48),
+            "agents": agents,
+            "pipeline": {
+                "opportunities": pipeline_counts,
+                "risk_events": risk_counts,
+                "total_agent_decisions": total_decisions,
+            },
+            "activity": activity,
+            "positions": positions,
+            "closed_positions": closed,
+            "opportunities": opportunities,
+            "alerts": alerts,
+            "smartmoney_chains": [s.chain for s in (state.scanners or [])],
+            "webhooks_active": bool(state.db.kv_get("helius_webhook_synced_at")),
+            "provider_health": json.loads(
+                state.db.kv_get("provider_health") or "{}"),
+        }
+
     @api.get("/api/positions", dependencies=[Depends(check_auth)])
     async def positions(status: str = "open", limit: int = 50):
         if status not in ("open", "closed"):

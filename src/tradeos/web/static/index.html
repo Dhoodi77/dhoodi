@@ -3,136 +3,307 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>TradeOS</title>
+<title>TradeOS Desk</title>
 <style>
-:root{--bg:#0d1117;--card:#161b22;--border:#30363d;--text:#e6edf3;--dim:#8b949e;
---green:#3fb950;--red:#f85149;--amber:#d29922;--blue:#58a6ff}
+:root{
+  --bg:#f2f2ee; --card:#ffffff; --border:#e5e4de; --ink:#17181a;
+  --ink2:#55575c; --muted:#9a9ba1; --green:#177245; --green-bg:#e7f3ec;
+  --red:#c02d3c; --red-bg:#faeaec; --amber:#9a6700; --amber-bg:#fbf0d9;
+  --accent:#0d6e5f; --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
 *{box-sizing:border-box;margin:0}
-body{background:var(--bg);color:var(--text);font:15px/1.45 -apple-system,system-ui,sans-serif;
-padding-bottom:70px}
-header{position:sticky;top:0;background:var(--bg);border-bottom:1px solid var(--border);
-padding:12px 16px;display:flex;justify-content:space-between;align-items:center;z-index:10}
-h1{font-size:17px}
-.pill{font-size:12px;padding:3px 10px;border-radius:999px;border:1px solid var(--border)}
-.pill.ok{color:var(--green);border-color:var(--green)}
-.pill.bad{color:var(--red);border-color:var(--red)}
-main{padding:12px;max-width:640px;margin:0 auto}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
-.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px}
-.card .label{color:var(--dim);font-size:12px;text-transform:uppercase;letter-spacing:.04em}
-.card .value{font-size:22px;font-weight:600;margin-top:2px}
-.pos .value{font-size:18px}
-.green{color:var(--green)}.red{color:var(--red)}.amber{color:var(--amber)}.dim{color:var(--dim)}
-section{margin-bottom:16px}
-section h2{font-size:14px;color:var(--dim);margin:14px 0 8px;text-transform:uppercase;
-letter-spacing:.04em}
-.row{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 12px;
-margin-bottom:8px;font-size:14px}
-.row .top{display:flex;justify-content:space-between;font-weight:600}
-.row .sub{color:var(--dim);font-size:12px;margin-top:2px;word-break:break-all}
-button{font:inherit;border:none;border-radius:10px;padding:12px;width:100%;font-weight:700;
-cursor:pointer}
+body{background:var(--bg);color:var(--ink);
+  font:15px/1.45 -apple-system,"Segoe UI",system-ui,sans-serif;padding:10px}
+.wrap{max-width:1240px;margin:0 auto;display:flex;flex-direction:column;gap:10px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:16px;
+  padding:16px 18px}
+.lbl{font:600 10.5px/1 var(--mono);letter-spacing:.09em;color:var(--muted);
+  text-transform:uppercase}
+.sub{font:500 11px/1.4 var(--mono);color:var(--muted)}
+.mono{font-family:var(--mono)}
+.green{color:var(--green)}.red{color:var(--red)}.amber{color:var(--amber)}
+.dim{color:var(--muted)}
+
+/* header */
+header.card{display:flex;align-items:center;gap:14px;padding:12px 18px}
+.logo{width:44px;height:44px;border-radius:12px;background:#c8f03c;
+  display:flex;align-items:center;justify-content:center;font-size:22px;flex:none}
+.title{font-weight:800;font-size:19px;letter-spacing:.01em}
+.title small{font:600 13px var(--mono);color:var(--red);margin-left:8px;
+  font-style:normal}
+.pill{margin-left:auto;display:flex;align-items:center;gap:7px;
+  background:#123d2a;color:#fff;border-radius:999px;padding:8px 16px;
+  font:700 12px var(--mono);letter-spacing:.06em}
+.pill .dot{width:8px;height:8px;border-radius:50%;background:#ffd53d}
+.pill.halted{background:var(--red)}
+.clock{font:600 13px var(--mono);color:var(--ink2);margin-left:14px;flex:none}
+
+/* stat row */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.stat .v{font-size:27px;font-weight:800;letter-spacing:-.01em;margin-top:6px;
+  font-variant-numeric:tabular-nums}
+.stat .d{font:600 11px var(--mono);margin-top:4px}
+.gatecard button{margin-top:8px;width:100%;border:none;border-radius:9px;
+  padding:8px;font:700 11px var(--mono);letter-spacing:.06em;cursor:pointer}
 #killBtn{background:var(--red);color:#fff}
-#resumeBtn{background:var(--green);color:#0d1117;display:none}
-nav{position:fixed;bottom:0;left:0;right:0;background:var(--card);
-border-top:1px solid var(--border);display:flex;padding-bottom:env(safe-area-inset-bottom)}
-nav button{background:none;color:var(--dim);border-radius:0;padding:12px 0;font-size:12px;
-font-weight:600}
-nav button.active{color:var(--blue)}
-#tokenBox{width:100%;padding:10px;border-radius:8px;border:1px solid var(--border);
-background:var(--bg);color:var(--text);font:inherit;margin-bottom:8px}
-.hidden{display:none}
+#resumeBtn{background:var(--green);color:#fff;display:none}
+.gate-state{font-size:19px;font-weight:800;margin-top:6px}
+.gate-bars{display:flex;gap:3px;margin-top:7px}
+.gate-bars i{height:6px;flex:1;border-radius:3px;background:var(--border)}
+.gate-bars i.on{background:var(--green)}
+
+/* two-column band */
+.band{display:grid;grid-template-columns:1.45fr 1fr;gap:10px}
+.chart-head,.log-head{display:flex;justify-content:space-between;
+  align-items:baseline;margin-bottom:10px}
+#chartBox{position:relative}
+#chartBox svg{display:block;width:100%;height:230px}
+#tip{position:absolute;pointer-events:none;background:var(--ink);color:#fff;
+  font:600 11px var(--mono);padding:5px 8px;border-radius:7px;display:none;
+  white-space:nowrap;transform:translate(-50%,-135%)}
+.log{max-height:262px;overflow-y:auto;display:flex;flex-direction:column;gap:2px}
+.log-row{display:flex;gap:8px;align-items:baseline;font:500 12px var(--mono);
+  padding:4px 6px;border-radius:7px}
+.log-row:nth-child(odd){background:#fafaf7}
+.log-row time{color:var(--muted);flex:none}
+.agent-tag{font-weight:700;flex:none;min-width:44px}
+.log-row .act{color:var(--ink2);overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap}
+
+/* decision flow */
+.flowband{display:grid;grid-template-columns:1.45fr 1fr;gap:10px}
+.flow-svg{width:100%;height:150px;display:block}
+.kv{display:flex;justify-content:space-between;align-items:baseline;
+  padding:7px 0;border-bottom:1px dashed var(--border);font:600 13px var(--mono)}
+.kv:last-child{border:none}
+.kv b{font-size:16px;font-variant-numeric:tabular-nums}
+
+/* tables */
+.tbl{width:100%;border-collapse:collapse;font:500 12.5px var(--mono)}
+.tbl th{text-align:left;font:600 10px var(--mono);letter-spacing:.08em;
+  color:var(--muted);text-transform:uppercase;padding:6px 8px;
+  border-bottom:1px solid var(--border)}
+.tbl td{padding:7px 8px;border-bottom:1px solid #f0efe9;
+  font-variant-numeric:tabular-nums}
+.tbl tr:last-child td{border:none}
+.scorepill{display:inline-block;min-width:34px;text-align:center;
+  border-radius:6px;padding:2px 5px;font-weight:700;background:#f0efe9}
+.scroll-x{overflow-x:auto}
+
+/* agent roster */
+.roster{display:grid;grid-template-columns:repeat(9,minmax(118px,1fr));gap:8px;
+  overflow-x:auto;padding-bottom:4px}
+.acard{background:var(--card);border:1.5px solid var(--border);
+  border-radius:14px;padding:10px 8px;text-align:center;position:relative;
+  min-width:118px}
+.acard.active{border-color:var(--accent);
+  box-shadow:0 0 0 3px rgba(13,110,95,.10)}
+.acard .num{position:absolute;top:7px;left:9px;font:700 9px var(--mono);
+  color:var(--muted)}
+.acard .st{position:absolute;top:8px;right:9px;width:8px;height:8px;
+  border-radius:50%;background:var(--border)}
+.acard .st.ok{background:var(--green)}
+.acard .st.warm{background:var(--amber)}
+.avatar{width:52px;height:52px;border-radius:50%;margin:6px auto 6px;
+  display:flex;align-items:center;justify-content:center;font-size:26px}
+.acard .nm{font:800 11.5px var(--mono);letter-spacing:.05em}
+.acard .rl{font:600 8.5px var(--mono);letter-spacing:.08em;color:var(--muted);
+  text-transform:uppercase;margin-top:2px}
+.acard .tk{font:500 9.5px var(--mono);color:var(--ink2);margin-top:6px;
+  min-height:24px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;
+  -webkit-box-orient:vertical}
+.acard .ct{font:700 10px var(--mono);margin-top:4px}
+
+/* auth */
+#authView{max-width:420px;margin:8vh auto}
+#tokenBox{width:100%;padding:12px;border-radius:10px;border:1px solid var(--border);
+  background:#fff;font:inherit;margin:10px 0}
+#loginBtn{width:100%;border:none;border-radius:10px;padding:12px;cursor:pointer;
+  background:var(--ink);color:#fff;font:700 13px var(--mono);letter-spacing:.05em}
+
+.hidden{display:none !important}
+@media(max-width:900px){
+  .stats{grid-template-columns:1fr 1fr}
+  .band,.flowband{grid-template-columns:1fr}
+  .roster{display:flex}
+  .acard{flex:0 0 122px}
+}
 </style>
 </head>
 <body>
-<header>
-  <h1>TradeOS</h1>
-  <span id="modePill" class="pill">…</span>
+<div class="wrap">
+
+<div id="authView" class="card hidden">
+  <div class="lbl">TradeOS Desk — Access</div>
+  <input id="tokenBox" type="password" placeholder="Dashboard token"
+    autocomplete="current-password">
+  <button id="loginBtn">CONNECT</button>
+</div>
+
+<div id="deskView" class="hidden" style="display:flex;flex-direction:column;gap:10px">
+
+<header class="card">
+  <div class="logo">📈</div>
+  <div><span class="title">TRADEOS DESK</span><span class="title"><small id="modeTag">…</small></span></div>
+  <div class="pill" id="livePill"><span class="dot"></span><span id="pillTxt">…</span></div>
+  <div class="clock" id="clock">--:--</div>
 </header>
-<main>
-  <div id="authView">
-    <section><h2>Access token</h2>
-      <input id="tokenBox" type="password" placeholder="Dashboard token" autocomplete="current-password">
-      <button id="loginBtn" style="background:var(--blue);color:#fff">Connect</button>
-    </section>
+
+<section class="stats">
+  <div class="card stat">
+    <div class="lbl">Equity / USD</div>
+    <div class="v" id="equity">–</div>
+    <div class="sub" id="equitySub">cash – · exposure –</div>
   </div>
-
-  <div id="appView" class="hidden">
-    <div id="tab-dash">
-      <div class="grid">
-        <div class="card"><div class="label">Equity</div><div class="value" id="equity">–</div></div>
-        <div class="card"><div class="label">Cash</div><div class="value" id="cash">–</div></div>
-        <div class="card"><div class="label">Daily P&L</div><div class="value" id="dailyPnl">–</div></div>
-        <div class="card"><div class="label">Unrealized</div><div class="value" id="unrealPnl">–</div></div>
-      </div>
-      <section><h2>System</h2><div id="sysStatus"></div></section>
-      <section>
-        <button id="killBtn">🛑 KILL SWITCH</button>
-        <div style="height:8px"></div>
-        <button id="resumeBtn">Resume trading</button>
-      </section>
-      <section><h2>Agents</h2><div id="agentList"></div></section>
-    </div>
-
-    <div id="tab-pos" class="hidden">
-      <section><h2>Open positions</h2><div id="posList"></div></section>
-      <section><h2>Recent closed</h2><div id="closedList"></div></section>
-    </div>
-
-    <div id="tab-opps" class="hidden">
-      <section><h2>Opportunity feed</h2><div id="oppList"></div></section>
-    </div>
-
-    <div id="tab-log" class="hidden">
-      <section><h2>Alerts</h2><div id="alertList"></div></section>
-      <section><h2>Audit trail</h2><div id="auditList"></div></section>
-    </div>
+  <div class="card stat">
+    <div class="lbl">Total P&amp;L / USD</div>
+    <div class="v" id="totalPnl">–</div>
+    <div class="d" id="totalPnlPct"></div>
   </div>
-</main>
-<nav id="navBar" class="hidden">
-  <button data-tab="dash" class="active" style="flex:1">Home</button>
-  <button data-tab="pos" style="flex:1">Positions</button>
-  <button data-tab="opps" style="flex:1">Feed</button>
-  <button data-tab="log" style="flex:1">Log</button>
-</nav>
+  <div class="card stat">
+    <div class="lbl">Daily P&amp;L / USD</div>
+    <div class="v" id="dailyPnl">–</div>
+    <div class="sub" id="posCount">– open positions</div>
+  </div>
+  <div class="card stat gatecard">
+    <div class="lbl">Risk Gate</div>
+    <div class="gate-state" id="gateState">–</div>
+    <div class="gate-bars" id="gateBars"></div>
+    <button id="killBtn">🛑 KILL SWITCH</button>
+    <button id="resumeBtn">RESUME TRADING</button>
+  </div>
+</section>
+
+<section class="band">
+  <div class="card">
+    <div class="chart-head">
+      <span class="lbl">// Balance History</span>
+      <span class="sub" id="chartRange">USD / 48H</span>
+    </div>
+    <div id="chartBox"><svg id="chart" preserveAspectRatio="none"></svg>
+      <div id="tip"></div></div>
+    <div class="sub" id="chartEmpty" style="text-align:center;padding:8px 0"></div>
+  </div>
+  <div class="card">
+    <div class="log-head">
+      <span class="lbl">// Activity Log</span>
+      <span class="sub" id="eventCount">– events</span>
+    </div>
+    <div class="log" id="logList"></div>
+  </div>
+</section>
+
+<section class="flowband">
+  <div class="card">
+    <div class="chart-head"><span class="lbl">● Decision Pipeline</span>
+      <span class="sub">every trade passes all gates</span></div>
+    <svg class="flow-svg" id="flowSvg" viewBox="0 0 760 150"></svg>
+  </div>
+  <div class="card">
+    <div class="chart-head"><span class="lbl">● Desk Ledger</span>
+      <span class="sub">deterministic gates</span></div>
+    <div class="kv"><span class="dim">AGENT HANDOFFS</span><b id="handoffs">–</b></div>
+    <div class="kv"><span class="dim">RISK VETOES</span><b id="vetoes" class="red">–</b></div>
+    <div class="kv"><span class="dim">EXECUTED</span><b id="executed" class="green">–</b></div>
+    <div class="kv"><span class="dim">REJECTED</span><b id="rejected">–</b></div>
+    <div class="kv"><span class="dim">CLAUDE</span><b id="llmState">–</b></div>
+    <div class="kv"><span class="dim">INTEL FEEDS</span><b id="intelState">–</b></div>
+  </div>
+</section>
+
+<section class="card">
+  <div class="chart-head"><span class="lbl">// Opportunity Feed</span>
+    <span class="sub">scored by momentum · smart money · whales · risk</span></div>
+  <div class="scroll-x"><table class="tbl" id="oppTbl">
+    <thead><tr><th>Token</th><th>Chain</th><th>Mom</th><th>Smart</th>
+      <th>Whale</th><th>Risk</th><th>Overall</th><th>Status</th></tr></thead>
+    <tbody></tbody></table></div>
+</section>
+
+<section class="band">
+  <div class="card">
+    <div class="chart-head"><span class="lbl">// Open Positions</span></div>
+    <div class="scroll-x"><table class="tbl" id="posTbl">
+      <thead><tr><th>Token</th><th>Cost</th><th>Entry</th><th>Unreal P&amp;L</th>
+        <th></th></tr></thead><tbody></tbody></table></div>
+  </div>
+  <div class="card">
+    <div class="chart-head"><span class="lbl">// Recently Closed</span></div>
+    <div class="scroll-x"><table class="tbl" id="closedTbl">
+      <thead><tr><th>Token</th><th>Exit</th><th>P&amp;L</th></tr></thead>
+      <tbody></tbody></table></div>
+  </div>
+</section>
+
+<section>
+  <div class="roster" id="roster"></div>
+</section>
+
+</div>
+</div>
+
 <script>
 let token = localStorage.getItem('tradeos_token') || '';
 const $ = id => document.getElementById(id);
-const fmt = v => (v>=0?'+':'')+'$'+Math.abs(v).toFixed(2);
-const money = v => '$'+Number(v).toFixed(2);
-const cls = v => v>0?'green':(v<0?'red':'dim');
+const money = v => '$' + Number(v).toLocaleString(undefined,
+  {minimumFractionDigits:2, maximumFractionDigits:2});
+const signed = v => (v >= 0 ? '+' : '−') + money(Math.abs(v)).slice(0);
+const cls = v => v > 0 ? 'green' : (v < 0 ? 'red' : 'dim');
+const esc = s => String(s ?? '').replace(/[&<>"]/g,
+  c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* Agent metadata: identity is carried by the written name; color reinforces. */
+const AGENTS = {
+  xavi     : {emoji:'🎯', role:'Control',    tag:'XAVI',  color:'#17181a', bg:'#efefec'},
+  messi    : {emoji:'🔬', role:'Research',   tag:'MESI',  color:'#5a51d6', bg:'#edecfa'},
+  ronny    : {emoji:'⛓️', role:'On-chain',   tag:'RONN',  color:'#0d6e5f', bg:'#e4f2ef'},
+  iniesta  : {emoji:'📊', role:'Analysis',   tag:'INIS',  color:'#b3591c', bg:'#faeee3'},
+  neymar   : {emoji:'🛡️', role:'Veto gate',  tag:'NEYM',  color:'#c02d3c', bg:'#faeaec'},
+  suarez   : {emoji:'🧐', role:'Contrarian', tag:'SUAR',  color:'#8250c9', bg:'#f2ecfa'},
+  maradona : {emoji:'🗂️', role:'Tasks',      tag:'MARD',  color:'#556070', bg:'#ecEFf3'},
+  pele     : {emoji:'🌐', role:'Signals',    tag:'PELE',  color:'#1168b3', bg:'#e6f0f9'},
+  ronaldinho:{emoji:'🧩', role:'Proposals',  tag:'RNDI',  color:'#437022', bg:'#ecf4e4'},
+};
+const AGENTS_LEGACY = {
+  research : 'messi', onchain  : 'ronny', financial: 'iniesta', risk     : 'neymar',
+  critic   : 'suarez', executive: 'xavi', planning : 'maradona', web      : 'pele',
+  coding   : 'ronaldinho'
+};
+const ACTOR_TAGS = {
+  risk_engine:'RISK', execution_paper:'FILL', execution_live:'FILL',
+  execution_live_evm:'FILL', gateway:'GATE', pipeline:'PIPE', user:'USER',
+  wallet_registry:'WALLT', webhook:'HOOK', post_trade_critic:'CRTIC',
+  system:'SYS',
+};
+function actorMeta(actor){
+  const agentKey = AGENTS_LEGACY[actor] || actor;
+  if (AGENTS[agentKey]) return {tag:AGENTS[agentKey].tag, color:AGENTS[agentKey].color};
+  return {tag:ACTOR_TAGS[actor] || actor.slice(0,5).toUpperCase(),
+          color: actor === 'risk_engine' ? '#c02d3c' : '#55575c'};
+}
 
 async function api(path, opts={}){
   const r = await fetch(path, {...opts, headers:{
     'Authorization':'Bearer '+token, 'Content-Type':'application/json',
     ...(opts.headers||{})}});
-  if(r.status===401){ showAuth(); throw new Error('unauthorized'); }
-  if(!r.ok) throw new Error('api '+r.status);
+  if (r.status === 401){ showAuth(); throw new Error('unauthorized'); }
+  if (!r.ok) throw new Error('api '+r.status);
   return r.json();
 }
 function showAuth(){ $('authView').classList.remove('hidden');
-  $('appView').classList.add('hidden'); $('navBar').classList.add('hidden'); }
-function showApp(){ $('authView').classList.add('hidden');
-  $('appView').classList.remove('hidden'); $('navBar').classList.remove('hidden'); }
+  $('deskView').classList.add('hidden'); }
+function showDesk(){ $('authView').classList.add('hidden');
+  $('deskView').classList.remove('hidden'); }
 
 $('loginBtn').onclick = async () => {
   token = $('tokenBox').value.trim();
-  try { await api('/api/dashboard'); localStorage.setItem('tradeos_token', token);
-    showApp(); refresh(); } catch(e){ alert('Invalid token'); }
+  try{ await api('/api/desk'); localStorage.setItem('tradeos_token', token);
+    showDesk(); refresh(); }catch(e){ alert('Invalid token'); }
 };
-
-document.querySelectorAll('#navBar button').forEach(b => b.onclick = () => {
-  document.querySelectorAll('#navBar button').forEach(x=>x.classList.remove('active'));
-  b.classList.add('active');
-  ['dash','pos','opps','log'].forEach(t =>
-    $('tab-'+t).classList.toggle('hidden', t!==b.dataset.tab));
-  refresh();
-});
-
 $('killBtn').onclick = async () => {
   if(!confirm('Activate KILL SWITCH? All trading halts immediately.')) return;
   await api('/api/kill-switch/activate', {method:'POST',
-    body: JSON.stringify({reason:'manual from dashboard'})});
+    body: JSON.stringify({reason:'manual from desk'})});
   refresh();
 };
 $('resumeBtn').onclick = async () => {
@@ -143,85 +314,270 @@ $('resumeBtn').onclick = async () => {
   refresh();
 };
 
-function row(top1, top2, sub, topCls=''){
-  return `<div class="row"><div class="top"><span>${top1}</span>` +
-    `<span class="${topCls}">${top2}</span></div>` +
-    (sub?`<div class="sub">${sub}</div>`:'') + `</div>`;
+/* ---------- equity chart (single series, crosshair tooltip) ---------- */
+let chartPts = [];
+function drawChart(history){
+  const svg = $('chart'); svg.innerHTML = ''; chartPts = [];
+  if (!history || history.length < 2){
+    $('chartEmpty').textContent = history && history.length === 1
+      ? 'one snapshot recorded — history builds as the monitor runs'
+      : 'no equity history yet — snapshots record once the system runs';
+    return;
+  }
+  $('chartEmpty').textContent = '';
+  const W = 760, H = 230, padL = 46, padR = 14, padT = 16, padB = 24;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  const t0 = history[0].captured_at, t1 = history[history.length-1].captured_at;
+  const vals = history.map(p => p.equity_usd);
+  let lo = Math.min(...vals), hi = Math.max(...vals);
+  if (hi - lo < 1e-9){ lo -= 1; hi += 1; }
+  const pad = (hi - lo) * 0.12; lo -= pad; hi += pad;
+  const X = t => padL + (t - t0) / Math.max(t1 - t0, 1) * (W - padL - padR);
+  const Y = v => padT + (1 - (v - lo) / (hi - lo)) * (H - padT - padB);
+  const ns = 'http://www.w3.org/2000/svg';
+  const el = (n, at) => { const e = document.createElementNS(ns, n);
+    for (const k in at) e.setAttribute(k, at[k]); svg.appendChild(e); return e; };
+  // recessive grid: 3 horizontal lines + value labels
+  for (let i = 0; i <= 2; i++){
+    const v = lo + pad + (hi - lo - 2*pad) * i / 2, y = Y(v);
+    el('line', {x1:padL, x2:W-padR, y1:y, y2:y, stroke:'#eceae3',
+      'stroke-width':1});
+    const t = el('text', {x:padL-6, y:y+3, 'text-anchor':'end',
+      'font-size':9.5, fill:'#9a9ba1',
+      'font-family':'ui-monospace,monospace'});
+    t.textContent = '$' + Math.round(v).toLocaleString();
+  }
+  // time labels
+  [[t0, 'start'], [(t0+t1)/2, 'middle'], [t1, 'end']].forEach(([t, anchor]) => {
+    const lab = el('text', {x:X(t), y:H-8, 'text-anchor':anchor,
+      'font-size':9.5, fill:'#9a9ba1', 'font-family':'ui-monospace,monospace'});
+    lab.textContent = new Date(t*1000).toLocaleTimeString([],
+      {hour:'2-digit', minute:'2-digit'});
+  });
+  chartPts = history.map(p => ({x:X(p.captured_at), y:Y(p.equity_usd), p}));
+  const line = chartPts.map((q,i) => (i?'L':'M') + q.x.toFixed(1) + ' '
+    + q.y.toFixed(1)).join(' ');
+  el('path', {d: line + ` L ${chartPts[chartPts.length-1].x} ${H-padB} L ${chartPts[0].x} ${H-padB} Z`,
+    fill:'#177245', opacity:0.07});
+  el('path', {d:line, fill:'none', stroke:'#17181a', 'stroke-width':2,
+    'stroke-linejoin':'round', 'stroke-linecap':'round'});
+  const lastQ = chartPts[chartPts.length-1];
+  el('circle', {cx:lastQ.x, cy:lastQ.y, r:4.5, fill:'#c02d3c', stroke:'#fff',
+    'stroke-width':2});
+  // crosshair
+  const cross = el('line', {y1:padT, y2:H-padB, stroke:'#c9c8c0',
+    'stroke-width':1, 'stroke-dasharray':'3 3', visibility:'hidden'});
+  const dot = el('circle', {r:4, fill:'#17181a', stroke:'#fff',
+    'stroke-width':2, visibility:'hidden'});
+  const box = $('chartBox'), tip = $('tip');
+  box.onmousemove = box.ontouchmove = ev => {
+    const rect = svg.getBoundingClientRect();
+    const cx = ((ev.touches ? ev.touches[0].clientX : ev.clientX) - rect.left)
+      / rect.width * W;
+    let best = chartPts[0];
+    for (const q of chartPts) if (Math.abs(q.x-cx) < Math.abs(best.x-cx)) best = q;
+    cross.setAttribute('x1', best.x); cross.setAttribute('x2', best.x);
+    cross.setAttribute('visibility','visible');
+    dot.setAttribute('cx', best.x); dot.setAttribute('cy', best.y);
+    dot.setAttribute('visibility','visible');
+    tip.style.display = 'block';
+    tip.style.left = (best.x / W * rect.width) + 'px';
+    tip.style.top = (best.y / H * rect.height) + 'px';
+    tip.textContent = money(best.p.equity_usd) + ' · ' +
+      new Date(best.p.captured_at*1000).toLocaleTimeString([],
+        {hour:'2-digit', minute:'2-digit'});
+  };
+  box.onmouseleave = () => { tip.style.display='none';
+    cross.setAttribute('visibility','hidden');
+    dot.setAttribute('visibility','hidden'); };
+}
+
+/* ---------- decision pipeline diagram ---------- */
+function drawFlow(d){
+  const svg = $('flowSvg'); svg.innerHTML = '';
+  const ns = 'http://www.w3.org/2000/svg';
+  const el = (n, at, parent=svg) => { const e = document.createElementNS(ns, n);
+    for (const k in at) e.setAttribute(k, at[k]); parent.appendChild(e); return e; };
+  const byName = Object.fromEntries(d.agents.map(a => [a.name, a]));
+  const o = d.pipeline.opportunities || {};
+  const analyzed = Object.values(o).reduce((a,b)=>a+b,0);
+  const nodes = [
+    {x:52,  label:'DATA',    sub:analyzed + ' opps',   c:'#556070'},
+    {x:162, label:'ANALYSTS',sub:(['research','onchain','financial']
+      .reduce((n,k)=>n+((byName[k]||{}).decisions||0),0)) + ' calls', c:'#5a51d6'},
+    {x:280, label:'RISK',    sub:((byName.risk||{}).decisions||0) + ' calls', c:'#c02d3c'},
+    {x:392, label:'CRITIC',  sub:((byName.critic||{}).decisions||0) + ' calls', c:'#8250c9'},
+    {x:506, label:'EXEC',    sub:((byName.executive||{}).decisions||0) + ' calls', c:'#17181a'},
+    {x:614, label:'GATE',    sub:(d.pipeline.risk_events.rejection||0) + ' stops', c:'#c02d3c'},
+    {x:712, label:'FILL',    sub:(o.executed||0) + ' trades', c:'#177245'},
+  ];
+  const midY = 62;
+  for (let i = 0; i < nodes.length-1; i++){
+    el('line', {x1:nodes[i].x+30, x2:nodes[i+1].x-30, y1:midY, y2:midY,
+      stroke:'#d8d6cd', 'stroke-width':1.5, 'stroke-dasharray':'4 4'});
+    el('path', {d:`M ${nodes[i+1].x-34} ${midY-4} l 7 4 l -7 4 z`,
+      fill:'#b6b4aa'});
+  }
+  nodes.forEach(n => {
+    el('circle', {cx:n.x, cy:midY, r:26, fill:'#fff', stroke:n.c,
+      'stroke-width':2});
+    const t1 = el('text', {x:n.x, y:midY+3, 'text-anchor':'middle',
+      'font-size':9.5, 'font-weight':700, fill:n.c,
+      'font-family':'ui-monospace,monospace'});
+    t1.textContent = n.label;
+    const t2 = el('text', {x:n.x, y:midY+44, 'text-anchor':'middle',
+      'font-size':9, fill:'#9a9ba1', 'font-family':'ui-monospace,monospace'});
+    t2.textContent = n.sub;
+  });
+  const cap = el('text', {x:380, y:138, 'text-anchor':'middle', 'font-size':9.5,
+    fill:'#9a9ba1', 'font-family':'ui-monospace,monospace'});
+  cap.textContent = 'AGENTS ADVISE — THE DETERMINISTIC GATE AND $20 CAP ALWAYS DECIDE';
+}
+
+/* ---------- main refresh ---------- */
+function scorePill(v, invert=false){
+  if (v === null || v === undefined) return '<span class="dim">–</span>';
+  const good = invert ? v < 40 : v >= 60;
+  const bad = invert ? v >= 60 : v < 40;
+  return `<span class="scorepill" style="${good?'background:var(--green-bg);color:var(--green)':
+    bad?'background:var(--red-bg);color:var(--red)':''}">${Math.round(v)}</span>`;
+}
+function ago(ts){
+  if (!ts) return '';
+  const s = Math.max(0, Date.now()/1000 - ts);
+  return s < 90 ? Math.round(s)+'s' : s < 5400 ? Math.round(s/60)+'m'
+    : Math.round(s/3600)+'h';
 }
 
 async function refresh(){
-  try{
-    const d = await api('/api/dashboard');
-    $('modePill').textContent = d.kill_switch ? 'KILLED' : d.mode.toUpperCase();
-    $('modePill').className = 'pill ' + (d.kill_switch ? 'bad' : (d.trading_allowed?'ok':''));
-    $('equity').textContent = money(d.equity_usd);
-    $('cash').textContent = money(d.cash_usd);
-    $('dailyPnl').textContent = fmt(d.daily_pnl_usd);
-    $('dailyPnl').className = 'value '+cls(d.daily_pnl_usd);
-    $('unrealPnl').textContent = fmt(d.unrealized_pnl_usd);
-    $('unrealPnl').className = 'value '+cls(d.unrealized_pnl_usd);
-    $('killBtn').style.display = d.kill_switch ? 'none' : 'block';
-    $('resumeBtn').style.display = d.kill_switch ? 'block' : 'none';
-    const ph = d.provider_health || {};
-    const phOk = Object.keys(ph).length && Object.values(ph).every(p=>p.ok);
-    $('sysStatus').innerHTML =
-      row('Trading', d.trading_allowed?'ENABLED':'DISABLED',
-          d.trading_problems.join('; '), d.trading_allowed?'green':'amber') +
-      row('LLM agents', d.llm_available?'Claude connected':'heuristic mode', '',
-          d.llm_available?'green':'amber') +
-      row('Providers', Object.keys(ph).length ? (phOk?'healthy':'DEGRADED') : 'not checked',
-          Object.entries(ph).map(([n,p])=>`${n}: ${p.ok?'ok':'FAIL'}`).join(' · '),
-          phOk?'green':'amber') +
-      row('Smart money', d.smartmoney_scanner ?
-          (d.webhooks_active?'realtime + polling':'polling') : 'off',
-          d.webhook_last_event ?
-          ('last event '+Math.round(Date.now()/1000-Number(d.webhook_last_event))+'s ago') : '',
-          d.smartmoney_scanner?'green':'dim') +
-      row('Open positions', d.open_positions, '');
-    $('agentList').innerHTML = Object.entries(d.agents).map(([name,hb])=>{
-      const age = hb ? Math.round(Date.now()/1000 - hb.ts) : null;
-      return row(name, hb?`${age}s ago`:'no heartbeat',
-        hb?(hb.task||''):'', hb&&age<600?'green':'dim');
-    }).join('');
+  let d;
+  try { d = await api('/api/desk'); } catch(e){ console.error(e); return; }
 
-    const open = await api('/api/positions?status=open');
-    $('posList').innerHTML = open.length ? open.map(p =>
-      row(p.symbol||p.token_address.slice(0,8), fmt(p.unrealized_pnl_usd),
-        `${p.chain} · in ${money(p.cost_usd)} @ ${p.entry_price_usd} · ` +
-        `<a style="color:var(--red)" href="#" onclick="closePos(${p.id});return false">close</a>`,
-        cls(p.unrealized_pnl_usd))).join('') : '<div class="row dim">none</div>';
-    const closed = await api('/api/positions?status=closed&limit=10');
-    $('closedList').innerHTML = closed.length ? closed.map(p =>
-      row(p.symbol||'?', fmt(p.realized_pnl_usd||0),
-        `${p.exit_reason||''}`, cls(p.realized_pnl_usd||0))).join('')
-      : '<div class="row dim">none</div>';
+  $('modeTag').textContent = d.mode;
+  const pill = $('livePill');
+  pill.classList.toggle('halted', d.kill_switch);
+  $('pillTxt').textContent = d.kill_switch ? 'HALTED'
+    : (d.mode === 'live' ? 'LIVE' : d.mode.toUpperCase());
+  if (d.uptime_s != null){
+    const h = Math.floor(d.uptime_s/3600), m = Math.floor(d.uptime_s%3600/60);
+    $('clock').textContent = `UP ${h}:${String(m).padStart(2,'0')}`;
+  }
 
-    const opps = await api('/api/opportunities');
-    $('oppList').innerHTML = opps.length ? opps.map(o =>
-      row(`${o.symbol||o.token_address.slice(0,8)} <span class="dim">${o.chain}</span>`,
-        `${o.overall_score??'–'} <span class="dim">/ risk ${o.risk_score??'–'}</span>`,
-        `${o.status} · momentum ${o.momentum_score??'–'} · ${o.id}`)).join('')
-      : '<div class="row dim">none yet</div>';
+  $('equity').textContent = money(d.equity_usd);
+  $('equitySub').textContent =
+    `cash ${money(d.cash_usd)} · exposure ${money(d.exposure_usd)}`;
+  $('totalPnl').textContent = signed(d.total_pnl_usd);
+  $('totalPnl').className = 'v ' + cls(d.total_pnl_usd);
+  const base = d.starting_balance_usd || 0;
+  $('totalPnlPct').textContent = base ?
+    ((d.total_pnl_usd >= 0 ? '+' : '') +
+     (d.total_pnl_usd / base * 100).toFixed(2) + '%') : '';
+  $('totalPnlPct').className = 'd ' + cls(d.total_pnl_usd);
+  $('dailyPnl').textContent = signed(d.daily_pnl_usd);
+  $('dailyPnl').className = 'v ' + cls(d.daily_pnl_usd);
+  $('posCount').textContent = d.positions.length + ' open positions';
 
-    const alerts = await api('/api/alerts?limit=15');
-    $('alertList').innerHTML = alerts.length ? alerts.map(a =>
-      row(a.title, a.priority, a.body,
-        a.priority==='critical'?'red':(a.priority==='high'?'amber':'dim'))).join('')
-      : '<div class="row dim">none</div>';
-    const audit = await api('/api/audit?limit=25');
-    $('auditList').innerHTML = audit.map(a =>
-      row(a.action, a.actor, a.opportunity_id||'', 'dim')).join('');
-  }catch(e){ console.error(e); }
+  const gate = $('gateState');
+  if (d.kill_switch){ gate.textContent = 'HALTED'; gate.className = 'gate-state red'; }
+  else if (d.trading_allowed){ gate.textContent = 'ENTRY CLEARED';
+    gate.className = 'gate-state green'; }
+  else { gate.textContent = 'BLOCKED'; gate.className = 'gate-state amber';
+    gate.title = (d.trading_problems||[]).join('; '); }
+  const checks = [!d.kill_switch, d.trading_allowed,
+    Object.values(d.provider_health||{}).every(p=>p&&p.ok)
+      && Object.keys(d.provider_health||{}).length>0,
+    d.llm_available];
+  $('gateBars').innerHTML = checks.map(ok =>
+    `<i class="${ok?'on':''}"></i>`).join('');
+  $('killBtn').style.display = d.kill_switch ? 'none' : 'block';
+  $('resumeBtn').style.display = d.kill_switch ? 'block' : 'none';
+
+  drawChart(d.equity_history);
+
+  $('eventCount').textContent = d.activity.length + ' events';
+  $('logList').innerHTML = d.activity.map(a => {
+    const m = actorMeta(a.actor);
+    const t = new Date(a.created_at*1000).toLocaleTimeString([],
+      {hour:'2-digit', minute:'2-digit'});
+    return `<div class="log-row"><time>${t}</time>` +
+      `<span class="agent-tag" style="color:${m.color}">${esc(m.tag)}</span>` +
+      `<span class="act">${esc(a.action.replaceAll('_',' '))}` +
+      (a.opportunity_id ? ` <span class="dim">${esc(a.opportunity_id)}</span>` : '') +
+      `</span></div>`;
+  }).join('') || '<div class="sub" style="padding:8px">no activity yet</div>';
+
+  drawFlow(d);
+  const rj = d.pipeline.risk_events || {};
+  const oc = d.pipeline.opportunities || {};
+  $('handoffs').textContent = d.pipeline.total_agent_decisions;
+  $('vetoes').textContent = rj.rejection || 0;
+  $('executed').textContent = oc.executed || 0;
+  $('rejected').textContent = oc.rejected || 0;
+  $('llmState').textContent = d.llm_available ? 'CONNECTED' : 'HEURISTIC';
+  $('llmState').className = d.llm_available ? 'green' : 'amber';
+  $('intelState').textContent = d.smartmoney_chains.length
+    ? d.smartmoney_chains.length + ' CHAINS' +
+      (d.webhooks_active ? ' + RT' : '') : 'OFF';
+
+  $('oppTbl').querySelector('tbody').innerHTML = d.opportunities.map(o =>
+    `<tr><td><b>${esc(o.symbol || o.token_address.slice(0,8))}</b></td>` +
+    `<td class="dim">${esc(o.chain)}</td>` +
+    `<td>${scorePill(o.momentum_score)}</td>` +
+    `<td>${scorePill(o.smart_money_score)}</td>` +
+    `<td>${scorePill(o.whale_score)}</td>` +
+    `<td>${scorePill(o.risk_score, true)}</td>` +
+    `<td>${scorePill(o.overall_score)}</td>` +
+    `<td class="${o.status==='executed'?'green':o.status==='rejected'?'dim':'amber'}">` +
+    `${esc(o.status)}</td></tr>`).join('') ||
+    '<tr><td colspan="8" class="dim">no opportunities analyzed yet</td></tr>';
+
+  $('posTbl').querySelector('tbody').innerHTML = d.positions.map(p =>
+    `<tr><td><b>${esc(p.symbol || '?')}</b> <span class="dim">${esc(p.chain)}</span></td>` +
+    `<td>${money(p.cost_usd)}</td><td>${Number(p.entry_price_usd).toPrecision(4)}</td>` +
+    `<td class="${cls(p.unrealized_pnl_usd)}">${signed(p.unrealized_pnl_usd)}</td>` +
+    `<td><a href="#" style="color:var(--red)" onclick="closePos(${p.id});return false">close</a></td></tr>`
+  ).join('') || '<tr><td colspan="5" class="dim">none</td></tr>';
+
+  $('closedTbl').querySelector('tbody').innerHTML = d.closed_positions.map(p =>
+    `<tr><td><b>${esc(p.symbol || '?')}</b></td>` +
+    `<td class="dim">${esc(p.exit_reason || '')}</td>` +
+    `<td class="${cls(p.realized_pnl_usd||0)}">${signed(p.realized_pnl_usd||0)}</td></tr>`
+  ).join('') || '<tr><td colspan="3" class="dim">none</td></tr>';
+
+  $('roster').innerHTML = d.agents.map((a, i) => {
+    const agentKey = AGENTS_LEGACY[a.name] || a.name;
+    const meta = AGENTS[agentKey] || {emoji:'🤖', role:'', color:'#555', bg:'#eee'};
+    const displayName = agentKey.charAt(0).toUpperCase() + agentKey.slice(1);
+    const hbAge = a.heartbeat_at ? Date.now()/1000 - a.heartbeat_at : null;
+    const st = hbAge === null ? '' : hbAge < 600 ? 'ok' : 'warm';
+    const active = hbAge !== null && hbAge < 120;
+    return `<div class="acard ${active?'active':''}">` +
+      `<span class="num">${String(i+1).padStart(2,'0')}</span>` +
+      `<span class="st ${st}" title="${a.heartbeat_at?'heartbeat '+ago(a.heartbeat_at)+' ago':'no heartbeat yet'}"></span>` +
+      `<div class="avatar" style="background:${meta.bg}">${meta.emoji}</div>` +
+      `<div class="nm">${esc(displayName.toUpperCase())}</div>` +
+      `<div class="rl">${esc(meta.role)}</div>` +
+      `<div class="tk">${esc(a.task || (a.last_verdict ?
+        'last: ' + a.last_verdict : 'standing by'))}</div>` +
+      `<div class="ct" style="color:${meta.color}">${a.decisions} calls` +
+      (a.rejects ? ` · <span class="red">${a.rejects}✕</span>` : '') +
+      `</div></div>`;
+  }).join('');
 }
+
 window.closePos = async id => {
-  if(!confirm('Close position '+id+' at market?')) return;
-  try{ await api('/api/positions/'+id+'/close', {method:'POST'}); }catch(e){ alert(e); }
+  if (!confirm('Close position ' + id + ' at market?')) return;
+  try { await api('/api/positions/' + id + '/close', {method:'POST'}); }
+  catch(e){ alert(e); }
   refresh();
 };
 
-if(token){ api('/api/dashboard').then(()=>{showApp();refresh();}).catch(showAuth); }
+if (token){ api('/api/desk').then(() => { showDesk(); refresh(); })
+  .catch(showAuth); }
 else showAuth();
-setInterval(()=>{ if(!$('appView').classList.contains('hidden')) refresh(); }, 15000);
+setInterval(() => {
+  if (!$('deskView').classList.contains('hidden')) refresh();
+}, 12000);
 </script>
 </body>
 </html>

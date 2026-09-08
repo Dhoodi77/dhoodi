@@ -91,6 +91,36 @@ class PortfolioAccounting:
             self.db.kv_set(key, str(peak))
         return peak
 
+    # --- equity history ---------------------------------------------------
+    def snapshot_equity(self, min_interval_s: float = 60.0) -> None:
+        """Record an equity point for the balance-history chart, throttled so
+        the monitor loop can call it every sweep."""
+        last = self.db.query_one(
+            "SELECT captured_at FROM equity_snapshots WHERE mode = ? "
+            "ORDER BY captured_at DESC LIMIT 1", (self.mode,))
+        now = time.time()
+        if last and now - last["captured_at"] < min_interval_s:
+            return
+        self.db.execute(
+            "INSERT INTO equity_snapshots (mode, equity_usd, cash_usd, "
+            "exposure_usd, captured_at) VALUES (?, ?, ?, ?, ?)",
+            (self.mode, self.equity_usd(), self.cash_usd(),
+             self.exposure_usd(), now))
+        # keep the table bounded (~20 days at 1/min)
+        self.db.execute(
+            "DELETE FROM equity_snapshots WHERE mode = ? AND captured_at < ?",
+            (self.mode, now - 30 * 86400))
+
+    def equity_history(self, hours: float = 24.0, max_points: int = 300) -> list[dict]:
+        rows = self.db.query(
+            "SELECT equity_usd, cash_usd, exposure_usd, captured_at "
+            "FROM equity_snapshots WHERE mode = ? AND captured_at >= ? "
+            "ORDER BY captured_at", (self.mode, time.time() - hours * 3600))
+        if len(rows) > max_points:
+            step = len(rows) / max_points
+            rows = [rows[int(i * step)] for i in range(max_points)] + [rows[-1]]
+        return rows
+
     def state(self) -> PortfolioState:
         peak = self.update_peak_equity()
         return PortfolioState(

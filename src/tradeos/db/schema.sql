@@ -233,6 +233,16 @@ CREATE TABLE IF NOT EXISTS memories (
     UNIQUE (layer, key)
 );
 
+CREATE TABLE IF NOT EXISTS equity_snapshots (
+    id INTEGER PRIMARY KEY,
+    mode TEXT NOT NULL,
+    equity_usd REAL NOT NULL,
+    cash_usd REAL NOT NULL,
+    exposure_usd REAL NOT NULL,
+    captured_at REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_equity_snap ON equity_snapshots (mode, captured_at);
+
 CREATE TABLE IF NOT EXISTS wallet_swaps (
     id INTEGER PRIMARY KEY,
     chain TEXT NOT NULL,
