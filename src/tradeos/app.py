@@ -17,6 +17,9 @@ from tradeos.agents.web_agent import WebAgent
 from tradeos.config import Mode, Settings, get_settings
 from tradeos.db.database import Database
 from tradeos.execution.gateway import ExecutionGateway
+from tradeos.execution.live import LiveExecutionEngine
+from tradeos.execution.signer_client import RemoteSignerClient
+from tradeos.execution.venues.jupiter import JupiterVenue
 from tradeos.learning.post_trade import ensure_live_strategy
 from tradeos.llm.client import LlmClient
 from tradeos.logging_setup import setup_logging
@@ -33,6 +36,7 @@ from tradeos.providers.dexscreener import DexScreenerProvider
 from tradeos.risk.engine import RiskEngine
 from tradeos.risk.killswitch import KillSwitch
 from tradeos.strategies.scoring import ScoringConfig
+from tradeos.wallets.registry import WalletRegistry
 from tradeos.wallets.reputation import WalletReputationStore
 from tradeos.wallets.scanner import SmartMoneyScanner
 from tradeos.wallets.webhooks import HeliusWebhookManager
@@ -59,6 +63,8 @@ class App:
     smartmoney_scanner: SmartMoneyScanner | None = None
     webhook_manager: HeliusWebhookManager | None = None
     scanners: list = None
+    registry: WalletRegistry | None = None
+    live_engine: LiveExecutionEngine | None = None
 
 
 def build_app(settings: Settings | None = None) -> App:
@@ -78,12 +84,24 @@ def build_app(settings: Settings | None = None) -> App:
     if settings.mode != Mode.LIVE:
         accounting.ensure_seeded(settings.paper_starting_balance_usd)
 
-    gateway = ExecutionGateway(settings, db, risk_engine, kill_switch, accounting)
     llm = LlmClient(settings)
     market = DexScreenerProvider()
     chain_providers = build_chain_providers()
     memory = MemoryStore(db)
     reputation = WalletReputationStore(db)
+    registry = WalletRegistry(db)
+
+    # Live execution wiring (Solana/Jupiter). Everything here is inert and
+    # fail-closed until mode=live + confirm phrase + wallet + signer + RPC
+    # all exist; the readiness endpoint reports exactly what is missing.
+    signer = RemoteSignerClient()
+    venue = JupiterVenue()
+    live_engine = LiveExecutionEngine(
+        settings, db, registry=registry, signer=signer, venue=venue,
+        solana=chain_providers.get("solana"), market=market,
+        accounting=accounting)
+    gateway = ExecutionGateway(settings, db, risk_engine, kill_switch,
+                               accounting, live_engine=live_engine)
 
     scanners: list[SmartMoneyScanner] = []
     scanner = None  # the solana scanner, used by the webhook manager
@@ -142,4 +160,4 @@ def build_app(settings: Settings | None = None) -> App:
 
     return App(settings, db, kill_switch, risk_engine, accounting, gateway,
                market, pipeline, monitor, scheduler, llm, memory, reputation,
-               agents, scanner, webhook_manager, scanners)
+               agents, scanner, webhook_manager, scanners, registry, live_engine)

@@ -47,6 +47,13 @@ class PositionMonitor:
     async def check_all(self) -> int:
         """One monitoring sweep. Returns the number of positions closed."""
         closed = 0
+        if self.settings.mode.value == "live":
+            try:
+                reconciled = await self.gateway.live_engine.reconcile_pending()
+                if reconciled:
+                    logger.info("reconciled %d pending live trades", reconciled)
+            except Exception:
+                logger.exception("live trade reconciliation failed")
         # Filter by the accounting mode, not the raw settings mode: development
         # mode books everything as 'paper' and the two must never diverge.
         positions = self.db.query(
@@ -85,7 +92,7 @@ class PositionMonitor:
             if self.gateway.risk_engine.policy else 1.0,
             position_id=pos["id"], reason=reason,
         )
-        result = self.gateway.submit(instr, price)
+        result = await self.gateway.submit_async(instr, price)
         if not result.ok:
             self.db.alert("critical", f"EXIT FAILED for {pos['symbol']}",
                           f"position {pos['id']}: {result.error}")

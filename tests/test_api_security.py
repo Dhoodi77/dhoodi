@@ -101,14 +101,34 @@ def test_log_formatter_redacts(caplog):
 
 # --- live engine ---------------------------------------------------------
 
-def test_live_engine_fails_closed(db):
+async def test_live_engine_fails_closed_without_prerequisites(db):
+    """An unwired live engine (no wallet, signer, venue, or RPC) must refuse
+    every trade, even with mode=live and the confirm phrase set."""
     settings = make_settings(mode=Mode.LIVE,
                              live_trading_confirm="I_UNDERSTAND_THE_RISKS")
     engine = LiveExecutionEngine(settings, db)
-    result = engine.execute(TradeInstruction(
+    result = await engine.execute(TradeInstruction(
         opportunity_id="opp_live", chain="solana", token_address="t",
         side="buy", amount_usd=10, max_slippage_pct=1, max_gas_usd=1), 1.0)
     assert not result.ok
-    assert "not implemented" in result.error
+    assert "prerequisites missing" in result.error
     trades = db.query("SELECT * FROM trades WHERE mode = 'live'")
     assert trades[0]["status"] == "failed"
+
+
+def test_gateway_sync_path_refuses_live(db, kill_switch):
+    from tradeos.execution.gateway import ExecutionGateway
+    from tradeos.portfolio.accounting import PortfolioAccounting
+    from tradeos.risk.engine import RiskEngine
+
+    settings = make_settings(mode=Mode.LIVE,
+                             live_trading_confirm="I_UNDERSTAND_THE_RISKS")
+    acct = PortfolioAccounting(db, "live")
+    acct.record_cash("deposit", 500, note="test")
+    gw = ExecutionGateway(settings, db, RiskEngine(settings, db, kill_switch),
+                          kill_switch, acct)
+    result = gw.submit(TradeInstruction(
+        opportunity_id="o", chain="solana", token_address="t", side="buy",
+        amount_usd=10, max_slippage_pct=1, max_gas_usd=1), 1.0)
+    assert not result.ok
+    assert "async" in result.error

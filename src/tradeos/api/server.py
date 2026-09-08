@@ -181,6 +181,47 @@ def create_server(app_state: App | None = None) -> FastAPI:
         from tradeos.learning.post_trade import signal_performance
         return signal_performance(state.db)
 
+    # --- wallet registry (addresses only; keys never enter this system) ---
+    @api.get("/api/wallets", dependencies=[Depends(check_auth)])
+    async def wallets_list(chain: str | None = None):
+        return state.registry.list(chain)
+
+    @api.post("/api/wallets", dependencies=[Depends(check_auth)])
+    async def wallets_register(request: Request):
+        body = await request.json()
+        try:
+            wallet_id = state.registry.register(
+                label=str(body.get("label", ""))[:100],
+                chain=str(body.get("chain", "")),
+                address=str(body.get("address", ""))[:100],
+                kind=str(body.get("kind", "trading")),
+                strategy=body.get("strategy"),
+                risk_class=body.get("risk_class"))
+        except ValueError as exc:
+            raise HTTPException(400, str(exc))
+        return {"wallet_id": wallet_id}
+
+    @api.post("/api/wallets/{wallet_id}/active", dependencies=[Depends(check_auth)])
+    async def wallets_active(wallet_id: int, request: Request):
+        body = await request.json()
+        if state.registry.get(wallet_id) is None:
+            raise HTTPException(404, "no such wallet")
+        state.registry.set_active(wallet_id, bool(body.get("active", True)))
+        return {"ok": True}
+
+    @api.get("/api/live/readiness", dependencies=[Depends(check_auth)])
+    async def live_readiness():
+        """Exactly what stands between the current config and live trading.
+        Live stays disabled while 'problems' is non-empty."""
+        if state.live_engine is None:
+            return {"ready": False, "problems": ["live engine not wired"]}
+        report = await state.live_engine.readiness_full()
+        allowed, gate_problems = state.risk_engine.trading_allowed()
+        if not allowed:
+            report["ready"] = False
+            report["problems"] = gate_problems + report["problems"]
+        return report
+
     @api.get("/api/health")
     async def health():
         # Unauthenticated liveness endpoint (no sensitive data).

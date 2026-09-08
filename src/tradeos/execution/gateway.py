@@ -28,28 +28,50 @@ logger = logging.getLogger(__name__)
 
 class ExecutionGateway:
     def __init__(self, settings: Settings, db: Database, risk_engine: RiskEngine,
-                 kill_switch: KillSwitch, accounting: PortfolioAccounting):
+                 kill_switch: KillSwitch, accounting: PortfolioAccounting,
+                 live_engine: LiveExecutionEngine | None = None):
         self.settings = settings
         self.db = db
         self.risk_engine = risk_engine
         self.kill_switch = kill_switch
         self.paper_engine = PaperExecutionEngine(settings, db, accounting)
-        self.live_engine = LiveExecutionEngine(settings, db)
+        # An unwired live engine (no registry/signer/venue) still exists and
+        # still fails closed on every prerequisite check.
+        self.live_engine = live_engine or LiveExecutionEngine(settings, db)
         self.accounting = accounting
 
-    def submit(self, instr: TradeInstruction, market_price_usd: float) -> ExecutionResult:
+    def _gate(self, instr: TradeInstruction) -> ExecutionResult | None:
+        """Deterministic pre-execution gate shared by both entry points."""
         if self.kill_switch.is_active():
             self.db.audit("gateway", "blocked_kill_switch", instr.opportunity_id)
             return ExecutionResult(False, error="kill switch active")
-
         decision = self.risk_engine.evaluate_trade(instr, self.accounting.state())
         if not decision.approved:
             return ExecutionResult(
                 False, error=f"risk rejected [{decision.rule}]: {'; '.join(decision.reasons)}"
             )
+        return None
 
+    def submit(self, instr: TradeInstruction, market_price_usd: float) -> ExecutionResult:
+        """Synchronous entry point: paper only. Live execution requires the
+        async path (network I/O) and refuses here."""
+        blocked = self._gate(instr)
+        if blocked is not None:
+            return blocked
         if self.settings.mode == Mode.PAPER:
             return self.paper_engine.execute(instr, market_price_usd)
         if self.settings.mode == Mode.LIVE:
-            return self.live_engine.execute(instr, market_price_usd)
+            return ExecutionResult(False, error="live execution requires the "
+                                                "async submit path")
+        return ExecutionResult(False, error=f"mode {self.settings.mode.value} cannot execute")
+
+    async def submit_async(self, instr: TradeInstruction,
+                           market_price_usd: float) -> ExecutionResult:
+        blocked = self._gate(instr)
+        if blocked is not None:
+            return blocked
+        if self.settings.mode == Mode.PAPER:
+            return self.paper_engine.execute(instr, market_price_usd)
+        if self.settings.mode == Mode.LIVE:
+            return await self.live_engine.execute(instr, market_price_usd)
         return ExecutionResult(False, error=f"mode {self.settings.mode.value} cannot execute")

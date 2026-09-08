@@ -30,7 +30,11 @@ code, enforced regardless of what any agent says.
 | Position monitor (stop-loss / take-profit / max-hold) + post-trade reviews | working, tested |
 | Mobile-first web dashboard + control API (token auth, rate limiting) | working, smoke-tested |
 | Web agent (X/Reddit/search) | scaffold; requires API credentials, fails honest instead of fabricating |
-| Live execution | **deliberately not implemented** — fails closed, audited (Stage 7) |
+| Wallet registry (trading/treasury isolation, addresses only, no keys) | working, tested |
+| External signer service (separate process, own policy, real ed25519 signing) | working, tested; deploy per signer/README.md |
+| Jupiter venue (quote, validation, unsigned tx build) | implemented, fixture-tested; live calls need open egress |
+| Live execution engine (simulate → sign → submit → confirm → reconcile) | implemented, tested against stubs; **stays disabled** until every readiness check passes (`/api/live/readiness`) |
+| EVM live execution | **not implemented** — refuses explicitly |
 
 ## Quickstart
 

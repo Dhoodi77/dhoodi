@@ -117,6 +117,12 @@ class Settings(BaseSettings):
     # Live trading gate
     live_trading_confirm: str = ""
 
+    # Live execution (Solana/Jupiter). Signer credentials come from
+    # TRADEOS_SIGNER_URL / TRADEOS_SIGNER_TOKEN (read by the signer client).
+    live_max_price_impact_pct: float = 2.0
+    live_priority_fee_lamports_max: int = 1_000_000  # 0.001 SOL
+    live_confirm_timeout_s: float = 60.0
+
     @property
     def allowed_chain_list(self) -> list[str]:
         return [c.strip().lower() for c in self.allowed_chains.split(",") if c.strip()]

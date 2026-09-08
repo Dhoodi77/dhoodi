@@ -17,7 +17,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "pytest-asyncio>=0.23"]
+# solders is only needed to run the signer-service tests; the tradeos
+# process itself never imports it (the signer is a separate process).
+dev = ["pytest>=8", "pytest-asyncio>=0.23", "solders>=0.21"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

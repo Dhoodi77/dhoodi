@@ -144,7 +144,7 @@ class OpportunityPipeline:
 
         if decision.final == "execute":
             self._set_status(opp_id, "approved")
-            executed = self._execute(opp_id, pair)
+            executed = await self._execute(opp_id, pair)
             self._set_status(opp_id, "executed" if executed else "rejected")
         elif decision.final == "investigate":
             self._set_status(opp_id, "detected")  # stays visible for re-analysis
@@ -153,7 +153,7 @@ class OpportunityPipeline:
         set_correlation_id(None)
         return decision
 
-    def _execute(self, opp_id: str, pair: PairData) -> bool:
+    async def _execute(self, opp_id: str, pair: PairData) -> bool:
         # Deterministic sizing: configured cap bounded by the hard $20 limit
         # (enforced again inside the risk engine).
         policy = self.gateway.risk_engine.policy
@@ -172,7 +172,7 @@ class OpportunityPipeline:
             max_gas_usd=policy.max_gas_usd,
             reason="pipeline momentum entry",
         )
-        result = self.gateway.submit(instr, pair.price_usd)
+        result = await self.gateway.submit_async(instr, pair.price_usd)
         if not result.ok:
             logger.warning("execution declined for %s: %s", opp_id, result.error)
             return False

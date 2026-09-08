@@ -67,3 +67,58 @@ class SolanaProvider(ChainProvider):
         ) or []
         return [{"tx_hash": s.get("signature"), "slot": s.get("slot"),
                  "err": s.get("err")} for s in sigs]
+
+    # --- transaction lifecycle (used by live execution) -----------------
+    async def get_token_decimals(self, mint: str) -> int | None:
+        supply = await self._rpc("getTokenSupply", [mint])
+        try:
+            return int(supply["value"]["decimals"])
+        except (TypeError, KeyError, ValueError):
+            return None
+
+    async def simulate_transaction(self, tx_b64: str) -> dict:
+        """Pre-submit simulation. Returns {'ok': bool, 'error': ..., 'logs': ...}.
+        A failed RPC call counts as a failed simulation — fail closed."""
+        result = await self._rpc("simulateTransaction", [
+            tx_b64, {"encoding": "base64", "commitment": "processed",
+                     "replaceRecentBlockhash": True}])
+        if result is None:
+            return {"ok": False, "error": "simulation rpc unavailable"}
+        value = result.get("value") or {}
+        err = value.get("err")
+        return {"ok": err is None, "error": err,
+                "logs": (value.get("logs") or [])[-10:],
+                "units_consumed": value.get("unitsConsumed")}
+
+    async def send_transaction(self, tx_b64: str) -> str | None:
+        """Submit a signed transaction. Returns the signature or None."""
+        return await self._rpc("sendTransaction", [
+            tx_b64, {"encoding": "base64", "skipPreflight": False,
+                     "maxRetries": 3}])
+
+    async def get_signature_status(self, signature: str) -> dict | None:
+        result = await self._rpc("getSignatureStatuses",
+                                 [[signature], {"searchTransactionHistory": True}])
+        try:
+            return (result or {}).get("value", [None])[0]
+        except (AttributeError, IndexError):
+            return None
+
+    async def get_transaction_balances(self, signature: str) -> dict | None:
+        """Pre/post balances for fill reconciliation; None if unavailable."""
+        result = await self._rpc("getTransaction", [
+            signature, {"encoding": "json", "maxSupportedTransactionVersion": 0,
+                        "commitment": "confirmed"}])
+        meta = (result or {}).get("meta")
+        if not meta:
+            return None
+        return {
+            "err": meta.get("err"),
+            "fee_lamports": meta.get("fee"),
+            "pre_token": meta.get("preTokenBalances") or [],
+            "post_token": meta.get("postTokenBalances") or [],
+            "pre_sol": meta.get("preBalances") or [],
+            "post_sol": meta.get("postBalances") or [],
+            "account_keys": ((result or {}).get("transaction") or {})
+            .get("message", {}).get("accountKeys") or [],
+        }

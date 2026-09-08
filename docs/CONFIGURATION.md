@@ -122,9 +122,20 @@ Real-time reactions:
 | `TRADEOS_SEARCH_API_KEY` | web agent |
 | `TRADEOS_X_BEARER_TOKEN`, `TRADEOS_REDDIT_CLIENT_ID`/`_SECRET` | social monitoring |
 
-## Live trading gate (Stage 7)
+## Live execution (Stage 7 — Solana/Jupiter)
 
-`TRADEOS_MODE=live` additionally requires
-`TRADEOS_LIVE_TRADING_CONFIRM=I_UNDERSTAND_THE_RISKS`; even then the live
-engine currently fails closed — see docs/OPERATIONS.md for the full
-checklist that must exist before live execution is implemented.
+| Variable | Default | Meaning |
+|---|---|---|
+| `TRADEOS_LIVE_TRADING_CONFIRM` | — | must be exactly `I_UNDERSTAND_THE_RISKS` |
+| `TRADEOS_SIGNER_URL` / `TRADEOS_SIGNER_TOKEN` | — | external signer service (separate process holding the key; see signer/README.md) |
+| `TRADEOS_LIVE_MAX_PRICE_IMPACT_PCT` | 2.0 | quotes above this price impact are refused |
+| `TRADEOS_LIVE_PRIORITY_FEE_LAMPORTS_MAX` | 1000000 | priority-fee ceiling (0.001 SOL); its USD value must also fit the instruction's max_gas |
+| `TRADEOS_LIVE_CONFIRM_TIMEOUT_S` | 60 | confirmation polling window before handing off to reconciliation |
+| `TRADEOS_JUPITER_BASE_URL` | lite-api.jup.ag/swap/v1 | override if Jupiter moves hosts |
+
+Live execution refuses unless ALL of: mode=live, confirm phrase, an active
+registered trading wallet (`POST /api/wallets`, address only), signer
+configured and healthy, Solana RPC (Helius key or `TRADEOS_RPC_SOLANA`),
+and complete risk policy. `GET /api/live/readiness` lists what's missing.
+EVM live execution is not implemented and refuses explicitly. Full
+enablement procedure: docs/OPERATIONS.md.

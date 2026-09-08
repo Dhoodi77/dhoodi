@@ -178,11 +178,38 @@ data instead of staying permanent guesses.
 - Process supervision via systemd (`scripts/tradeos.service`), WAL-mode
   SQLite for crash safety.
 
+## Live execution (Stage 7 — Solana/Jupiter)
+
+Live trading exists but is gated behind a readiness check that must be
+fully green (`/api/live/readiness`): mode + confirm phrase, a registered
+active trading wallet, the external signer, Solana RPC, and the complete
+risk policy. The per-trade flow after the risk engine approves:
+
+```
+Jupiter quote -> deterministic validation (mints, amounts, slippage cap,
+price impact cap) -> priority-fee cap vs instruction max_gas -> unsigned
+tx built -> RPC simulation (must pass; unreachable RPC = failure)
+-> trade row 'pending' BEFORE signing -> external signer (own policy,
+may refuse) -> submit -> confirmation polling -> fill recorded from
+on-chain balance deltas (validated-quote estimate as audited fallback)
+```
+
+Failure semantics are explicit: a lost submit response or confirmation
+timeout leaves the trade `pending` with an alert — reconciled by the
+monitor loop against the chain, never assumed failed or filled. A trade
+with no recorded signature escalates to the operator.
+
+**Key isolation:** this process never holds key material. The signer
+(signer/) is a separate process with its own bearer token, its own rate
+limit, its own kill file, and one hard rule — it only signs transactions
+whose fee payer is its own key. Wallets are registered by address only;
+kind='treasury' wallets are refused by the execution path.
+
 ## Deliberate omissions (not oversights)
 
-- **Live execution** fails closed until Stage 7: wallet signer isolation,
-  per-chain RPC config, DEX router integration (Jupiter / 0x-style), and
-  pre-submit transaction simulation are prerequisites.
+- **EVM live execution** refuses explicitly: it needs a router integration
+  (0x/1inch-style), EVM transaction simulation, and an EVM signer before
+  it can exist honestly.
 - **Coding agent** is proposal-only: an agent that can edit trading logic
   can edit its own risk limits.
 - **Web agent** stays inert without credentialed APIs rather than scraping

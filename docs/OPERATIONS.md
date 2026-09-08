@@ -63,16 +63,35 @@ Everything lives in `data/tradeos.db`. Snapshot it (e.g. nightly
 `sqlite3 data/tradeos.db ".backup backup-$(date +%F).db"`). The `.env` file
 holds secrets — back it up separately and encrypted, never into git.
 
-## Live trading checklist (Stage 7 — all required before implementing)
+## Live trading (Stage 7 — Solana via Jupiter)
 
-1. Paper mode has run for a meaningful period with reviewed post-trade
-   results.
-2. External signing: keys held by a separate signer service or hardware
-   wallet; this process must never see key material.
-3. Trading wallets funded with only what they may lose, isolated from
-   treasury.
-4. Per-chain RPC endpoints configured and failover tested.
-5. DEX router integration (e.g. Jupiter for Solana; 0x/1inch for EVM) with
-   pre-submit transaction simulation.
-6. All risk parameters reviewed; `TRADEOS_LIVE_TRADING_CONFIRM` set.
-7. Kill switch drill performed (all three activation paths).
+The live engine exists and fails closed until every prerequisite is met.
+`GET /api/live/readiness` reports exactly what is missing, including live
+health checks of the signer, venue, and RPC. EVM live execution is not
+implemented and refuses explicitly.
+
+Enable in this order — do not skip steps:
+
+1. **Paper first.** Run paper mode long enough to have reviewed post-trade
+   results and `/api/signals/performance` data you actually believe.
+2. **Signer.** Deploy `signer/` as a separate OS user (ideally separate
+   host) per `signer/README.md`. Fund its wallet with only what it may
+   lose. Set `TRADEOS_SIGNER_URL` + `TRADEOS_SIGNER_TOKEN` in TradeOS.
+3. **Register the wallet** (address only — never a key):
+   `POST /api/wallets {"label":"main","chain":"solana","address":"...","kind":"trading"}`.
+   Treasury wallets get `"kind":"treasury"` — execution refuses them.
+4. **RPC**: `TRADEOS_HELIUS_API_KEY` (recommended) or `TRADEOS_RPC_SOLANA`.
+5. **Review risk parameters**, then set `TRADEOS_MODE=live` and
+   `TRADEOS_LIVE_TRADING_CONFIRM=I_UNDERSTAND_THE_RISKS`.
+6. **Verify** `GET /api/live/readiness` returns `ready: true`.
+7. **Drill the kill switches**: dashboard button, `touch data/KILLSWITCH`,
+   and `touch signer/SIGNER_KILLSWITCH` (the signer-side stop works even if
+   TradeOS itself is compromised).
+
+Per-trade flow (all deterministic): risk engine → Jupiter quote →
+slippage/price-impact/mint validation → priority-fee cap vs max_gas →
+RPC simulation (must pass) → pending trade row → external signer (own
+policy) → submit → confirmation polling → fill from on-chain balance
+deltas (quote estimate as audited fallback). Unconfirmed trades stay
+`pending` and are reconciled by the monitor loop — never assumed failed,
+never assumed filled.
