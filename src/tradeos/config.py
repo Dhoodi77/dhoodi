@@ -68,6 +68,10 @@ class Settings(BaseSettings):
 
     database_path: str = "./data/tradeos.db"
 
+    # Demo mode: enforces paper trading, prevents real signing
+    demo_mode: bool = False
+    demo_starting_balance: float = 10000.0
+
     # Model routing: role -> Anthropic model id. anthropic_api_key is read
     # from the standard ANTHROPIC_API_KEY env var by the SDK itself; we only
     # detect presence, never store or log it.

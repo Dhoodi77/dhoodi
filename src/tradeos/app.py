@@ -73,6 +73,16 @@ def build_app(settings: Settings | None = None) -> App:
     settings = settings or get_settings()
     setup_logging()
 
+    # Demo mode enforcement: force paper trading
+    if settings.demo_mode:
+        logger.info("🟢 DEMO MODE ENABLED")
+        logger.info("   Paper trading: YES (start balance: $%.2f)", settings.demo_starting_balance)
+        logger.info("   Live trading: DISABLED (cannot be enabled)")
+        logger.info("   Real signing: BLOCKED (no real transactions)")
+        if settings.mode != Mode.PAPER:
+            logger.warning("Demo mode requires TRADEOS_MODE=paper, overriding to paper")
+            settings.mode = Mode.PAPER
+
     db = Database(settings.database_path)
     kill_switch = KillSwitch(db)
     risk_engine = RiskEngine(settings, db, kill_switch)
@@ -84,7 +94,9 @@ def build_app(settings: Settings | None = None) -> App:
     mode_str = settings.mode.value if settings.mode != Mode.DEVELOPMENT else "paper"
     accounting = PortfolioAccounting(db, mode=mode_str)
     if settings.mode != Mode.LIVE:
-        accounting.ensure_seeded(settings.paper_starting_balance_usd)
+        starting_balance = (settings.demo_starting_balance if settings.demo_mode
+                           else settings.paper_starting_balance_usd)
+        accounting.ensure_seeded(starting_balance)
 
     llm = LlmClient(settings)
     market = DexScreenerProvider()

@@ -42,6 +42,10 @@ class ExecutionGateway:
 
     def _gate(self, instr: TradeInstruction) -> ExecutionResult | None:
         """Deterministic pre-execution gate shared by both entry points."""
+        # Demo mode safety: always enforce paper trading
+        if self.settings.demo_mode and self.settings.mode != Mode.PAPER:
+            self.db.audit("gateway", "demo_mode_live_attempt", instr.opportunity_id)
+            return ExecutionResult(False, error="demo mode requires paper trading")
         if self.kill_switch.is_active():
             self.db.audit("gateway", "blocked_kill_switch", instr.opportunity_id)
             return ExecutionResult(False, error="kill switch active")

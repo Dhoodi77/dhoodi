@@ -132,3 +132,21 @@ class PortfolioAccounting:
             peak_equity_usd=peak,
             equity_usd=self.equity_usd(),
         )
+
+    # --- demo mode reset --------------------------------------------------
+    def reset_paper_trades(self, starting_balance: float = 10000.0) -> None:
+        """Reset paper trading state to initial conditions (demo only)."""
+        # Close all open positions
+        now = time.time()
+        self.db.execute(
+            "UPDATE positions SET status = 'closed', exit_reason = 'demo_reset', "
+            "closed_at = ?, updated_at = ? WHERE status = 'open' AND mode = ?",
+            (now, now, self.mode),
+        )
+        # Clear ledger and equity snapshots
+        self.db.execute("DELETE FROM portfolio_ledger WHERE mode = ?", (self.mode,))
+        self.db.execute("DELETE FROM equity_snapshots WHERE mode = ?", (self.mode,))
+        # Reset peak equity
+        self.db.kv_set(f"peak_equity_{self.mode}", str(starting_balance))
+        # Re-seed with starting balance
+        self.record_cash("deposit", starting_balance, note="demo reset - fresh start")

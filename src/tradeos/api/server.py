@@ -322,6 +322,59 @@ def create_server(app_state: App | None = None) -> FastAPI:
         # Unauthenticated liveness endpoint (no sensitive data).
         return {"ok": True, "ts": time.time()}
 
+    # --- demo mode endpoints -----------------------------------------------
+    @api.get("/api/demo/status", dependencies=[Depends(check_auth)])
+    async def demo_status():
+        """Demo mode status and safety information."""
+        return {
+            "demo_mode": settings.demo_mode,
+            "trading_mode": settings.mode.value,
+            "starting_balance": settings.demo_starting_balance,
+            "paper_only": True if settings.demo_mode else False,
+            "live_trading_disabled": True if settings.demo_mode else settings.live_trading_confirm == "",
+            "safety_message": "🟢 DEMO / PAPER TRADING — No real transactions possible",
+            "is_safe_demo": settings.demo_mode and settings.mode == Mode.PAPER,
+        }
+
+    @api.post("/api/demo/reset", dependencies=[Depends(check_auth)])
+    async def demo_reset():
+        """Reset paper trading state (demo mode only). WARNING: Destructive."""
+        if not settings.demo_mode:
+            raise HTTPException(400, "reset only available in demo mode")
+        # Drop and recreate paper trading data
+        state.accounting.reset_paper_trades()
+        state.db.system_event("demo_reset", "user reset paper trading")
+        return {"reset": True, "balance": state.accounting.equity_usd()}
+
+    @api.post("/api/demo/agents/start", dependencies=[Depends(check_auth)])
+    async def demo_agents_start():
+        """Start all agents (demo)."""
+        if not state.scheduler.running:
+            await state.scheduler.start()
+        return {"agents_running": True}
+
+    @api.post("/api/demo/agents/pause", dependencies=[Depends(check_auth)])
+    async def demo_agents_pause():
+        """Pause all agents (demo)."""
+        if state.scheduler.running:
+            await state.scheduler.stop()
+        return {"agents_paused": True}
+
+    @api.get("/api/demo/agents/status", dependencies=[Depends(check_auth)])
+    async def demo_agents_status():
+        """Get agent statuses (demo)."""
+        agents_status = {}
+        for name in state.agents:
+            hb_raw = state.db.kv_get(f"agent_hb_{name}")
+            hb = json.loads(hb_raw) if hb_raw else None
+            agents_status[name] = {
+                "name": name,
+                "online": hb is not None,
+                "last_heartbeat": (hb or {}).get("ts"),
+                "task": (hb or {}).get("task", ""),
+            }
+        return {"agents": agents_status, "scheduler_running": state.scheduler.running}
+
     # --- Helius webhook receiver --------------------------------------
     # Authenticated by the shared secret Helius echoes verbatim in the
     # Authorization header (configured at webhook registration) — the
