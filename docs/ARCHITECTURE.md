@@ -104,6 +104,34 @@ Holder distribution for Solana upgrades from the RPC top-20 approximation
 to full DAS `getTokenAccounts` pagination (top-10/top-20 concentration,
 holder count), feeding the on-chain agent's concentration checks.
 
+## Real-time wallet tracking (Helius webhooks)
+
+With `TRADEOS_PUBLIC_URL` + `TRADEOS_HELIUS_WEBHOOK_SECRET` also set, the
+system registers one Helius enhanced webhook whose address list is the
+current tracked smart-money set (self-synced at startup and after every
+scanner pass — newly identified wallets stream without a restart).
+Deliveries hit `/webhooks/helius`, authenticated by the shared secret with
+a constant-time compare; the dashboard token is never shared with Helius.
+
+Reactions are deterministic and bounded: every parsed swap is stored
+(deduplicated by signature); a tracked wallet's buy raises an alert and
+feeds the token into the *same* opportunity pipeline (same agents, same
+risk engine, same $20 cap — real-time input accelerates analysis, it
+cannot bypass anything); a tracked wallet selling a token with an open
+position raises a critical alert. Webhooks complement polling rather than
+replace it, so a missed delivery costs latency, not correctness.
+
+## Self-diagnostics
+
+At startup the scheduler runs provider health checks that validate not
+just reachability but response *shape* (DexScreener search, Helius RPC,
+webhook API auth, DAS structure). Failures raise a critical alert and are
+shown on the dashboard — external API drift is loud, never silent. Closed
+trades additionally record their entry signals, and
+`/api/signals/performance` reports realized win rates per signal bucket
+(marked low-confidence under 20 trades), so scoring weights get judged by
+data instead of staying permanent guesses.
+
 ## Security model
 
 - **Hard cap**: `HARD_INITIAL_TRADE_CAP_USD = 20` in code; config can

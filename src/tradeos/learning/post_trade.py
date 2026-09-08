@@ -52,6 +52,14 @@ def build_review(db: Database, position: dict) -> dict:
         "what_went_right": "target reached" if pnl > 0 else None,
         "what_went_wrong": (position.get("exit_reason") if pnl < 0 else None),
         "overall_score_at_entry": (opp or {}).get("overall_score"),
+        # Entry signals recorded verbatim so weights can be validated against
+        # realized outcomes instead of staying untested heuristics.
+        "signals_at_entry": {
+            "momentum": (opp or {}).get("momentum_score"),
+            "smart_money": (opp or {}).get("smart_money_score"),
+            "whale": (opp or {}).get("whale_score"),
+            "risk": (opp or {}).get("risk_score"),
+        },
     }
 
 
@@ -82,6 +90,48 @@ async def run_post_trade_review(db: Database, llm: LlmClient, position: dict) ->
     db.audit("post_trade_critic", "review_created", position.get("opportunity_id"),
              {"position_id": position["id"], "pnl_usd": review["pnl_usd"]})
     return review_id
+
+
+def signal_performance(db: Database) -> dict:
+    """Realized outcomes bucketed by the entry signals that argued for the
+    trade. This is the evidence base for tuning scoring weights; buckets with
+    tiny samples are reported as-is and marked low-confidence rather than
+    hidden or smoothed."""
+    rows = db.query(
+        "SELECT o.momentum_score, o.smart_money_score, o.whale_score, r.pnl_usd "
+        "FROM post_trade_reviews r JOIN opportunities o ON o.id = r.opportunity_id "
+        "WHERE r.pnl_usd IS NOT NULL")
+
+    def bucket(name: str, selector) -> dict:
+        sample = [r for r in rows if selector(r)]
+        wins = sum(1 for r in sample if (r["pnl_usd"] or 0) > 0)
+        return {
+            "bucket": name,
+            "trades": len(sample),
+            "wins": wins,
+            "win_rate": round(wins / len(sample), 3) if sample else None,
+            "total_pnl_usd": round(sum(r["pnl_usd"] or 0 for r in sample), 2),
+            "low_confidence": len(sample) < 20,
+        }
+
+    return {
+        "closed_trades": len(rows),
+        "buckets": [
+            bucket("momentum>=65", lambda r: (r["momentum_score"] or 0) >= 65),
+            bucket("momentum<65", lambda r: (r["momentum_score"] or 0) < 65),
+            bucket("smart_money_present",
+                   lambda r: r["smart_money_score"] is not None),
+            bucket("smart_money>=65",
+                   lambda r: (r["smart_money_score"] or 0) >= 65),
+            bucket("whale_present", lambda r: r["whale_score"] is not None),
+            bucket("whale>=60", lambda r: (r["whale_score"] or 0) >= 60),
+            bucket("no_onchain_signals",
+                   lambda r: r["smart_money_score"] is None
+                   and r["whale_score"] is None),
+        ],
+        "note": "buckets under 20 trades are low-confidence; do not retune "
+                "weights on them",
+    }
 
 
 def ensure_live_strategy(db: Database, name: str, version: str, config_json: str) -> None:

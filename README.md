@@ -22,6 +22,10 @@ code, enforced regardless of what any agent says.
 | Helius indexer (holder distribution, parsed swap history, rate limiting) | implemented, fixture-tested; needs `TRADEOS_HELIUS_API_KEY` + open egress |
 | Smart-money discovery (wallet scan → round-trip P&L → score → decay) | working, tested end to end against fixtures |
 | Token smart-money / whale flow signals feeding opportunity scoring and the critic | working, tested |
+| Helius webhooks: real-time tracked-wallet events (self-registering, secret-authenticated) | implemented, tested; needs `TRADEOS_PUBLIC_URL` + webhook secret |
+| Smart-money discovery flywheel (tokens smart wallets buy enter the pipeline) | working, tested |
+| Provider health checks at startup (DexScreener + Helius shape validation) | working, tested |
+| Signal-outcome tracking (`/api/signals/performance` win rates per signal bucket) | working, tested |
 | Position monitor (stop-loss / take-profit / max-hold) + post-trade reviews | working, tested |
 | Mobile-first web dashboard + control API (token auth, rate limiting) | working, smoke-tested |
 | Web agent (X/Reddit/search) | scaffold; requires API credentials, fails honest instead of fabricating |

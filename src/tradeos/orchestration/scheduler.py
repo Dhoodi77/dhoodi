@@ -8,6 +8,7 @@ is documented in docs/OPERATIONS.md.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import time
 
@@ -23,13 +24,14 @@ logger = logging.getLogger(__name__)
 class Scheduler:
     def __init__(self, settings: Settings, db: Database, market: DexScreenerProvider,
                  pipeline: OpportunityPipeline, monitor: PositionMonitor,
-                 smartmoney_scanner=None):
+                 smartmoney_scanner=None, webhook_manager=None):
         self.settings = settings
         self.db = db
         self.market = market
         self.pipeline = pipeline
         self.monitor = monitor
         self.smartmoney_scanner = smartmoney_scanner
+        self.webhook_manager = webhook_manager
         self._tasks: list[asyncio.Task] = []
         self._stopping = asyncio.Event()
 
@@ -40,6 +42,7 @@ class Scheduler:
                                            self.settings.discovery_interval_s)),
             asyncio.create_task(self._loop("monitor", self._monitor_tick,
                                            self.settings.monitor_interval_s)),
+            asyncio.create_task(self._startup_health_checks()),
         ]
         if self.smartmoney_scanner is not None:
             self._tasks.append(asyncio.create_task(
@@ -47,6 +50,33 @@ class Scheduler:
                            self.settings.smartmoney_scan_interval_s)))
         self.db.system_event("scheduler_started",
                              f"mode={self.settings.mode.value}")
+
+    async def _startup_health_checks(self) -> None:
+        """Verify external providers actually respond with the expected
+        shapes so API drift or blocked egress is loud, not silent."""
+        results: dict[str, dict] = {}
+        try:
+            pairs = await self.market.search("SOL")
+            results["dexscreener"] = {"ok": bool(pairs),
+                                      "pairs_returned": len(pairs)}
+        except Exception as exc:
+            results["dexscreener"] = {"ok": False, "error": type(exc).__name__}
+        if self.smartmoney_scanner is not None:
+            try:
+                results["helius"] = await self.smartmoney_scanner.helius.health_check()
+            except Exception as exc:
+                results["helius"] = {"ok": False, "error": type(exc).__name__}
+        self.db.kv_set("provider_health", json.dumps(results))
+        failed = [name for name, r in results.items() if not r.get("ok")]
+        if failed:
+            self.db.alert(
+                "critical", f"Provider health check FAILED: {', '.join(failed)}",
+                json.dumps(results))
+            self.db.system_event("provider_health_failed", json.dumps(results))
+        else:
+            self.db.system_event("provider_health_ok", json.dumps(results))
+        if self.webhook_manager is not None:
+            await self.webhook_manager.sync()
 
     async def stop(self) -> None:
         self._stopping.set()
@@ -110,4 +140,12 @@ class Scheduler:
     async def _smartmoney_tick(self) -> None:
         if self.settings.mode == Mode.DEVELOPMENT:
             return
-        await self.smartmoney_scanner.scan()
+        stats = await self.smartmoney_scanner.scan()
+        # Discovery flywheel: analyze tokens tracked smart money just bought.
+        for mint in stats.get("candidate_mints", []):
+            pairs = await self.market.get_token_pairs("solana", mint)
+            if pairs:
+                await self.pipeline.process(max(pairs, key=lambda p: p.liquidity_usd))
+        # Keep the webhook's tracked-wallet list current with new scores.
+        if self.webhook_manager is not None:
+            await self.webhook_manager.sync()

@@ -80,6 +80,26 @@ With the key set, opportunities get real `smart_money_score` and
 `whale_score` values derived from recorded swaps; without it those stay
 null and scoring uses its neutral default.
 
+## Helius webhooks (real-time wallet tracking)
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `TRADEOS_PUBLIC_URL` | — | public HTTPS base URL of this instance (reverse-proxied); Helius delivers to `{PUBLIC_URL}/webhooks/helius` |
+| `TRADEOS_HELIUS_WEBHOOK_SECRET` | — | shared secret; Helius echoes it in the Authorization header and the receiver rejects everything else (constant-time compare) |
+| `TRADEOS_WEBHOOK_MAX_ADDRESSES` | 100 | cap on tracked wallet addresses registered with Helius |
+
+Both must be set (in addition to the API key) or the system stays on
+polling. The webhook registration self-syncs: created at startup once at
+least one smart-money wallet is tracked, and the address list updates
+after every scanner pass. Deliveries feed the same pipeline with the same
+risk gates — a webhook can accelerate analysis, never bypass anything.
+
+Real-time reactions:
+- tracked smart-money wallet **buys** → high alert + the token enters the
+  opportunity pipeline immediately
+- tracked wallet **sells a token you hold** → critical alert (position
+  requires attention)
+
 ## Other optional integrations (inactive until set)
 
 | Variable | Activates |

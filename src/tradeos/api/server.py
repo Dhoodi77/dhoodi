@@ -100,6 +100,10 @@ def create_server(app_state: App | None = None) -> FastAPI:
             },
             "smartmoney_scanner": state.smartmoney_scanner is not None,
             "smartmoney_last_scan": state.db.kv_get("smartmoney_last_scan"),
+            "webhooks_active": bool(state.db.kv_get("helius_webhook_synced_at")),
+            "webhook_last_event": state.db.kv_get("helius_webhook_last_event"),
+            "provider_health": json.loads(
+                state.db.kv_get("provider_health") or "{}"),
         }
 
     @api.get("/api/positions", dependencies=[Depends(check_auth)])
@@ -171,10 +175,35 @@ def create_server(app_state: App | None = None) -> FastAPI:
     async def smart_money():
         return state.reputation.tracked_smart_money()
 
+    @api.get("/api/signals/performance", dependencies=[Depends(check_auth)])
+    async def signals_performance():
+        from tradeos.learning.post_trade import signal_performance
+        return signal_performance(state.db)
+
     @api.get("/api/health")
     async def health():
         # Unauthenticated liveness endpoint (no sensitive data).
         return {"ok": True, "ts": time.time()}
+
+    # --- Helius webhook receiver --------------------------------------
+    # Authenticated by the shared secret Helius echoes verbatim in the
+    # Authorization header (configured at webhook registration) — the
+    # dashboard token is never given to a third party.
+    @api.post("/webhooks/helius")
+    async def helius_webhook(request: Request):
+        secret = settings.helius_webhook_secret
+        if not secret or state.webhook_manager is None:
+            raise HTTPException(404, "webhooks not configured")
+        supplied = request.headers.get("authorization", "")
+        if not secrets.compare_digest(supplied, secret):
+            raise HTTPException(401, "unauthorized")
+        try:
+            payload = await request.json()
+        except Exception:
+            raise HTTPException(400, "invalid json")
+        if not isinstance(payload, list):
+            raise HTTPException(400, "expected a list of transactions")
+        return await state.webhook_manager.handle_payload(payload[:100])
 
     # --- control API --------------------------------------------------
     @api.post("/api/kill-switch/activate", dependencies=[Depends(check_auth)])

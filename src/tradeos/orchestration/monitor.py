@@ -47,10 +47,11 @@ class PositionMonitor:
     async def check_all(self) -> int:
         """One monitoring sweep. Returns the number of positions closed."""
         closed = 0
+        # Filter by the accounting mode, not the raw settings mode: development
+        # mode books everything as 'paper' and the two must never diverge.
         positions = self.db.query(
             "SELECT * FROM positions WHERE status = 'open' AND mode = ?",
-            (self.gateway.paper_engine.mode if self.settings.mode.value == "paper"
-             else self.settings.mode.value,))
+            (self.gateway.accounting.mode,))
         for pos in positions:
             price = None
             if pos["pair_address"]:

@@ -48,6 +48,14 @@ class Database:
             self._conn.commit()
             return cur.lastrowid or 0
 
+    def execute_rowcount(self, sql: str, params: Iterable[Any] = ()) -> int:
+        """Run a write statement; returns affected-row count (0 for an
+        INSERT OR IGNORE that hit a conflict — lastrowid can't tell)."""
+        with self._lock:
+            cur = self._conn.execute(sql, tuple(params))
+            self._conn.commit()
+            return cur.rowcount if cur.rowcount > 0 else 0
+
     def query(self, sql: str, params: Iterable[Any] = ()) -> list[dict[str, Any]]:
         with self._lock:
             cur = self._conn.execute(sql, tuple(params))

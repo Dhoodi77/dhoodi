@@ -41,14 +41,13 @@ class SmartMoneyScanner:
     def store_swaps(self, records: list[SwapRecord]) -> int:
         stored = 0
         for r in records:
-            row_id = self.db.execute(
+            stored += self.db.execute_rowcount(
                 "INSERT OR IGNORE INTO wallet_swaps (chain, wallet, signature, "
                 "token_mint, direction, token_amount, sol_amount, counter_mint, "
                 "block_time, recorded_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
                 (r.chain, r.wallet, r.signature, r.token_mint, r.direction,
                  r.token_amount, r.sol_amount, r.counter_mint, r.block_time,
                  time.time()))
-            stored += 1 if row_id else 0
         return stored
 
     # --- candidate selection -------------------------------------------
@@ -88,11 +87,38 @@ class SmartMoneyScanner:
                 fresh.append(row["wallet"])
         return fresh
 
+    def discover_candidate_mints(self, since_hours: float = 6.0,
+                                 limit: int = 5) -> list[str]:
+        """Discovery flywheel: mints that tracked smart-money wallets bought
+        recently and the system has not yet analyzed. The scheduler feeds
+        these into the opportunity pipeline, so discovery is no longer
+        limited to tokens DexScreener promotes."""
+        tracked = self.reputation.tracked_smart_money(
+            min_score=self.settings.smartmoney_score_threshold)
+        wallets = [t["address"] for t in tracked][:20]
+        if not wallets:
+            return []
+        placeholders = ",".join("?" for _ in wallets)
+        rows = self.db.query(
+            f"SELECT DISTINCT token_mint FROM wallet_swaps WHERE chain = ? "
+            f"AND wallet IN ({placeholders}) AND direction = 'buy' "
+            f"AND block_time >= ?",
+            (self.chain, *wallets, time.time() - since_hours * 3600))
+        candidates: list[str] = []
+        for row in rows:
+            seen = self.db.query_one(
+                "SELECT id FROM opportunities WHERE chain = ? AND token_address = ? "
+                "AND created_at > ?",
+                (self.chain, row["token_mint"], time.time() - 24 * 3600))
+            if seen is None:
+                candidates.append(row["token_mint"])
+        return candidates[:limit]
+
     # --- scan ----------------------------------------------------------
     async def scan(self) -> dict:
-        """One scan pass. Returns counters for observability."""
+        """One scan pass. Returns counters plus flywheel candidates."""
         stats = {"tokens": 0, "swaps_stored": 0, "wallets_analyzed": 0,
-                 "wallets_scored": 0}
+                 "wallets_scored": 0, "candidate_mints": []}
         mints = self.candidate_tokens()
         for mint in mints:
             records = await self.helius.get_address_swaps(mint)
@@ -118,6 +144,7 @@ class SmartMoneyScanner:
                     "info", f"Smart-money wallet identified: {wallet[:8]}…",
                     f"score {score}, {perf.trade_count} round trips, "
                     f"win rate {perf.win_rate:.0%}, avg {perf.avg_return_pct:+.1f}%")
+        stats["candidate_mints"] = self.discover_candidate_mints()
         self.db.kv_set("smartmoney_last_scan", str(time.time()))
         logger.info("smart-money scan: %s", stats)
         return stats

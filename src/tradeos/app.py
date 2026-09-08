@@ -32,6 +32,7 @@ from tradeos.risk.killswitch import KillSwitch
 from tradeos.strategies.scoring import ScoringConfig
 from tradeos.wallets.reputation import WalletReputationStore
 from tradeos.wallets.scanner import SmartMoneyScanner
+from tradeos.wallets.webhooks import HeliusWebhookManager
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +54,7 @@ class App:
     reputation: WalletReputationStore
     agents: dict
     smartmoney_scanner: SmartMoneyScanner | None = None
+    webhook_manager: HeliusWebhookManager | None = None
 
 
 def build_app(settings: Settings | None = None) -> App:
@@ -108,9 +110,17 @@ def build_app(settings: Settings | None = None) -> App:
         scoring_config,
     )
     monitor = PositionMonitor(settings, db, market, gateway, llm)
+
+    webhook_manager = None
+    if scanner is not None:
+        webhook_manager = HeliusWebhookManager(
+            settings, db, solana_provider, reputation, scanner,
+            pipeline=pipeline, market=market)
+
     scheduler = Scheduler(settings, db, market, pipeline, monitor,
-                          smartmoney_scanner=scanner)
+                          smartmoney_scanner=scanner,
+                          webhook_manager=webhook_manager)
 
     return App(settings, db, kill_switch, risk_engine, accounting, gateway,
                market, pipeline, monitor, scheduler, llm, memory, reputation,
-               agents, scanner)
+               agents, scanner, webhook_manager)

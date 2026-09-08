@@ -125,12 +125,15 @@ class HeliusProvider(SolanaProvider):
                 await asyncio.sleep(wait)
             self._last_call = time.monotonic()
 
-    async def _get_json(self, path: str, params: dict, retries: int = 3):
+    async def _request_json(self, method: str, path: str, params: dict | None = None,
+                            body: dict | None = None, retries: int = 3):
         for attempt in range(retries + 1):
             await self._throttle()
             try:
-                resp = await self._api_client.get(
-                    path, params={**params, "api-key": self._api_key})
+                resp = await self._api_client.request(
+                    method, path,
+                    params={**(params or {}), "api-key": self._api_key},
+                    json=body)
                 if resp.status_code == 429:
                     raise httpx.HTTPStatusError("rate limited",
                                                 request=resp.request, response=resp)
@@ -138,11 +141,14 @@ class HeliusProvider(SolanaProvider):
                 return resp.json()
             except (httpx.HTTPError, ValueError) as exc:
                 if attempt == retries:
-                    logger.warning("helius request failed: %s %s", path,
+                    logger.warning("helius request failed: %s %s %s", method, path,
                                    type(exc).__name__)
                     return None
                 await asyncio.sleep(2 ** attempt)
         return None
+
+    async def _get_json(self, path: str, params: dict, retries: int = 3):
+        return await self._request_json("GET", path, params, retries=retries)
 
     # --- swaps ---------------------------------------------------------
     async def get_address_swaps(self, address: str, limit: int = 100,
@@ -192,6 +198,47 @@ class HeliusProvider(SolanaProvider):
             "top20_holder_pct": round(sum(top[:20]) / total * 100, 2),
             "truncated": truncated,
         }
+
+    # --- webhooks ------------------------------------------------------
+    # Reference: https://docs.helius.dev/webhooks — enhanced webhooks POST
+    # the same parsed-transaction shape as the Enhanced Transactions API.
+    async def list_webhooks(self) -> list[dict] | None:
+        data = await self._request_json("GET", "/v0/webhooks")
+        return data if isinstance(data, list) else None
+
+    async def create_webhook(self, webhook_url: str, addresses: list[str],
+                             auth_header: str) -> dict | None:
+        return await self._request_json("POST", "/v0/webhooks", body={
+            "webhookURL": webhook_url,
+            "transactionTypes": ["SWAP"],
+            "accountAddresses": addresses,
+            "webhookType": "enhanced",
+            "authHeader": auth_header,
+        })
+
+    async def update_webhook(self, webhook_id: str, webhook_url: str,
+                             addresses: list[str], auth_header: str) -> dict | None:
+        return await self._request_json("PUT", f"/v0/webhooks/{webhook_id}", body={
+            "webhookURL": webhook_url,
+            "transactionTypes": ["SWAP"],
+            "accountAddresses": addresses,
+            "webhookType": "enhanced",
+            "authHeader": auth_header,
+        })
+
+    # --- health --------------------------------------------------------
+    async def health_check(self) -> dict:
+        """Verify both Helius surfaces are reachable AND respond with the
+        expected shape, so API drift shows up as a loud system event instead
+        of silently empty results."""
+        rpc_ok = await self.is_available()
+        hooks = await self.list_webhooks()
+        api_ok = hooks is not None
+        das = await self._rpc("getTokenAccounts",
+                              {"mint": WSOL_MINT, "limit": 1, "page": 1})
+        das_ok = isinstance(das, dict) and "token_accounts" in das
+        return {"provider": "helius", "rpc": rpc_ok, "api": api_ok,
+                "das_shape": das_ok, "ok": rpc_ok and api_ok and das_ok}
 
     async def close(self) -> None:
         await self._api_client.aclose()

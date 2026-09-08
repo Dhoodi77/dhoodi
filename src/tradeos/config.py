@@ -105,6 +105,14 @@ class Settings(BaseSettings):
     smartmoney_score_threshold: float = 65.0
     whale_sol_threshold: float = 50.0
 
+    # Helius webhooks (real-time tracked-wallet events). Both must be set for
+    # webhook registration: the public HTTPS base URL this instance is
+    # reachable at, and a shared secret Helius echoes in the Authorization
+    # header of every delivery.
+    public_url: str | None = None
+    helius_webhook_secret: str | None = None
+    webhook_max_addresses: int = 100
+
     # Live trading gate
     live_trading_confirm: str = ""
 

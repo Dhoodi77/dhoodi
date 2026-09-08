@@ -162,11 +162,21 @@ async function refresh(){
     $('unrealPnl').className = 'value '+cls(d.unrealized_pnl_usd);
     $('killBtn').style.display = d.kill_switch ? 'none' : 'block';
     $('resumeBtn').style.display = d.kill_switch ? 'block' : 'none';
+    const ph = d.provider_health || {};
+    const phOk = Object.keys(ph).length && Object.values(ph).every(p=>p.ok);
     $('sysStatus').innerHTML =
       row('Trading', d.trading_allowed?'ENABLED':'DISABLED',
           d.trading_problems.join('; '), d.trading_allowed?'green':'amber') +
       row('LLM agents', d.llm_available?'Claude connected':'heuristic mode', '',
           d.llm_available?'green':'amber') +
+      row('Providers', Object.keys(ph).length ? (phOk?'healthy':'DEGRADED') : 'not checked',
+          Object.entries(ph).map(([n,p])=>`${n}: ${p.ok?'ok':'FAIL'}`).join(' · '),
+          phOk?'green':'amber') +
+      row('Smart money', d.smartmoney_scanner ?
+          (d.webhooks_active?'realtime + polling':'polling') : 'off',
+          d.webhook_last_event ?
+          ('last event '+Math.round(Date.now()/1000-Number(d.webhook_last_event))+'s ago') : '',
+          d.smartmoney_scanner?'green':'dim') +
       row('Open positions', d.open_positions, '');
     $('agentList').innerHTML = Object.entries(d.agents).map(([name,hb])=>{
       const age = hb ? Math.round(Date.now()/1000 - hb.ts) : null;
