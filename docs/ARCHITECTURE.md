@@ -1,0 +1,226 @@
+# TradeOS Architecture
+
+## Design principle
+
+Two layers with a one-way trust relationship:
+
+1. **Reasoning layer** (agents, LLM calls): produces analysis, verdicts,
+   and decision objects. Assumed fallible and untrusted.
+2. **Deterministic layer** (risk engine, execution gateway, kill switch,
+   validators, exit rules): plain code. Every trade — entry or exit, paper
+   or live — passes through it. Nothing in the reasoning layer can widen a
+   limit, skip a check, or execute directly.
+
+## Component map
+
+```
+src/tradeos/
+├── config.py            all financial parameters; hard $20 cap constant
+├── logging_setup.py     JSON logs, correlation ids, secret redaction
+├── db/                  SQLite (WAL), full schema, audit log
+├── llm/                 Anthropic client, role→model routing, JSON parsing
+├── agents/              9 agents (reasoning layer)
+├── orchestration/       pipeline, position monitor, scheduler, recovery
+├── providers/           DexScreener + EVM/Solana RPC + Helius indexer
+├── strategies/          momentum engine, versioned opportunity scoring
+├── risk/                policy, deterministic engine, kill switch
+├── execution/           instruction model, gateway, paper engine, live stub
+├── portfolio/           cash ledger, positions, P&L, drawdown state
+├── wallets/             smart-money reputation, round-trip analysis, scanner
+├── memory/              user/market/trading/agent memory layers
+├── learning/            post-trade reviews, versioned strategies
+├── api/                 FastAPI server, auth, control endpoints
+└── web/static/          mobile-first dashboard (vanilla JS)
+```
+
+## Decision pipeline
+
+```
+DexScreener discovery ──► snapshot stored ──► dedup / chain filter
+      ──► deterministic scoring (momentum, safety red flags, risk score)
+      ──► prefilter (obvious unfit rejected before agents run)
+      ──► Research ─► On-chain ─► Financial ─► Risk agent (adaptive
+          confirmations, veto) ─► Critic (tries to disprove)
+      ──► Executive (combination rules; LLM writes rationale only)
+      ──► TradeInstruction built by deterministic code ($20-capped sizing)
+      ──► ExecutionGateway: kill switch → pydantic validation → RiskEngine
+          (policy, circuit breakers, per-trade limits)
+      ──► Paper/Live engine ──► position ──► monitor loop (stop-loss /
+          take-profit / max-hold) ──► exit via the same gateway
+      ──► post-trade review stored ──► performance record
+```
+
+Every step writes to `audit_log` under one correlation id (`opp_…`), so a
+trade is fully reconstructable: snapshot → verdicts → risk events → trades
+→ position → review.
+
+## Executive combination rules (deterministic)
+
+- Risk agent `reject` → vetoed, final.
+- Critic `reject` → rejected; `needs_evidence` → investigate.
+- Otherwise: independent buy/approve confirmations must reach the risk
+  agent's adaptive requirement (1–4, scaled by token age, liquidity,
+  volatility, concentration).
+- The LLM may only phrase the rationale, never flip the outcome.
+
+## Model routing
+
+| Role | Default | Used by |
+|---|---|---|
+| fast | claude-haiku-4-5 | on-chain, risk, planning, web |
+| reasoning | claude-opus-5 | research, financial, coding, post-trade critic |
+| decision | claude-opus-5 | critic, executive |
+
+Configurable via `TRADEOS_MODEL_*`. With no API key the agents run pure
+heuristics — the pipeline works end to end without an LLM.
+
+## Smart-money discovery (Helius, Solana)
+
+With `TRADEOS_HELIUS_API_KEY` set, a scanner loop runs every
+`TRADEOS_SMARTMONEY_SCAN_INTERVAL_S`:
+
+```
+tokens the system watches (open positions + recent opportunities)
+  ─► Helius parsed swap history per token (SOL<->token swaps only;
+     ambiguous routes skipped, never approximated)
+  ─► active wallets extracted, stale-scored ones re-queued
+  ─► per-wallet swap history ─► SOL round trips (average cost basis;
+     sells with no observed buy are ignored — conservative by design)
+  ─► WalletPerformance ─► smart-money score (sample-size confidence,
+     14-day decay toward neutral) ─► wallet_scores
+```
+
+Recorded swaps also produce two token-level signals consumed by the
+scoring engine and the critic:
+
+- **smart-money score**: 50 baseline, +15 per distinct smart-money buyer
+  in 24h, −10 per smart-money seller; null when no scored wallet touched
+  the token (never faked).
+- **whale score**: buy/sell balance of swaps ≥ `TRADEOS_WHALE_SOL_THRESHOLD`
+  SOL; null when no whale-sized flow. Whale selling (< 40) becomes a
+  critic objection — a whale transaction is never assumed bullish.
+
+Holder distribution for Solana upgrades from the RPC top-20 approximation
+to full DAS `getTokenAccounts` pagination (top-10/top-20 concentration,
+holder count), feeding the on-chain agent's concentration checks.
+
+## EVM wallet intelligence (Etherscan V2)
+
+With `TRADEOS_ETHERSCAN_API_KEY` set, the same scanner runs per allowed
+EVM chain (ethereum, base, bsc, arbitrum, polygon — one key, one shared
+rate limiter). Etherscan has no parsed-swap API, so swaps are
+reconstructed deterministically: token transfers grouped per transaction
+hash against a per-chain counter-asset registry (wrapped native +
+stablecoins), with native ETH/BNB/POL legs joined from normal and internal
+transaction feeds. Only unambiguous single-token swaps are recorded —
+multi-hop and multi-token routes are skipped, never approximated. Round
+trips match within one counter asset (returns are unit-independent);
+whale signals on EVM use only stablecoin-denominated swaps, where USD
+value is exact. Candidate wallets for a token come from its recent
+transfer participants; pools and routers wash out naturally because their
+histories don't parse into round trips.
+
+## Real-time wallet tracking (Helius webhooks)
+
+With `TRADEOS_PUBLIC_URL` + `TRADEOS_HELIUS_WEBHOOK_SECRET` also set, the
+system registers one Helius enhanced webhook whose address list is the
+current tracked smart-money set (self-synced at startup and after every
+scanner pass — newly identified wallets stream without a restart).
+Deliveries hit `/webhooks/helius`, authenticated by the shared secret with
+a constant-time compare; the dashboard token is never shared with Helius.
+
+Reactions are deterministic and bounded: every parsed swap is stored
+(deduplicated by signature); a tracked wallet's buy raises an alert and
+feeds the token into the *same* opportunity pipeline (same agents, same
+risk engine, same $20 cap — real-time input accelerates analysis, it
+cannot bypass anything); a tracked wallet selling a token with an open
+position raises a critical alert. Webhooks complement polling rather than
+replace it, so a missed delivery costs latency, not correctness.
+
+## Self-diagnostics
+
+At startup the scheduler runs provider health checks that validate not
+just reachability but response *shape* (DexScreener search, Helius RPC,
+webhook API auth, DAS structure). Failures raise a critical alert and are
+shown on the dashboard — external API drift is loud, never silent. Closed
+trades additionally record their entry signals, and
+`/api/signals/performance` reports realized win rates per signal bucket
+(marked low-confidence under 20 trades), so scoring weights get judged by
+data instead of staying permanent guesses.
+
+## Security model
+
+- **Hard cap**: `HARD_INITIAL_TRADE_CAP_USD = 20` in code; config can
+  lower, never raise. Enforced at policy construction AND per trade.
+- **Fail closed**: missing risk parameters, unknown chain, zero price,
+  missing wallet → refusal, not a default.
+- **Kill switch**: DB flag + filesystem sentinel checked in the gateway
+  before anything else; circuit-breaker trips activate it automatically.
+  While active, entries AND autonomous exits halt (positions preserved per
+  policy) and exit failures raise critical alerts.
+- **Secrets**: never in code, DB, memory layers, or logs (redaction filter
+  for key shapes runs on every log line and memory write). Private keys
+  never enter this process — live signing is designed to be external.
+- **Auth**: constant-time bearer token, failure rate limiting, no docs
+  endpoints, unauthenticated surface limited to `/api/health`.
+- **LLM boundary**: agent output is parsed into typed verdicts; malformed
+  output degrades to heuristics; instructions are pydantic-validated and
+  re-checked by the risk engine.
+
+## Failure & recovery
+
+- Scheduler loops catch all exceptions → system_event + retry next tick.
+- Provider calls: bounded retries with backoff, rate limiters, then `None`
+  (degrade) — never fabricated data.
+- Startup: pending trades are flagged for reconciliation with a critical
+  alert; open positions re-verified against live prices by the monitor;
+  portfolio state reconstructs entirely from the database (tested).
+- Process supervision via systemd (`scripts/tradeos.service`), WAL-mode
+  SQLite for crash safety.
+
+## Live execution (Stage 7 — Solana/Jupiter)
+
+Live trading exists but is gated behind a readiness check that must be
+fully green (`/api/live/readiness`): mode + confirm phrase, a registered
+active trading wallet, the external signer, Solana RPC, and the complete
+risk policy. The per-trade flow after the risk engine approves:
+
+```
+Jupiter quote -> deterministic validation (mints, amounts, slippage cap,
+price impact cap) -> priority-fee cap vs instruction max_gas -> unsigned
+tx built -> RPC simulation (must pass; unreachable RPC = failure)
+-> trade row 'pending' BEFORE signing -> external signer (own policy,
+may refuse) -> submit -> confirmation polling -> fill recorded from
+on-chain balance deltas (validated-quote estimate as audited fallback)
+```
+
+Failure semantics are explicit: a lost submit response or confirmation
+timeout leaves the trade `pending` with an alert — reconciled by the
+monitor loop against the chain, never assumed failed or filled. A trade
+with no recorded signature escalates to the operator.
+
+**Key isolation:** this process never holds key material. The signer
+(signer/) is a separate process with its own bearer token, its own rate
+limit, its own kill file, and one hard rule — it only signs transactions
+whose fee payer is its own key. Wallets are registered by address only;
+kind='treasury' wallets are refused by the execution path.
+
+**EVM (0x Swap API v2, AllowanceHolder flow):** same shape per chain
+(ethereum, base, bsc, arbitrum, polygon), with EVM-specific mechanics —
+`estimateGas` is the independent simulation gate (a revert or unreachable
+RPC fails the trade before signing); the gas budget is priced in USD
+against the instruction's max_gas before submission; sells run an
+exact-amount ERC-20 approval through the same sign/submit/receipt path
+when the venue needs one; buy fills are read from the receipt's Transfer
+logs; sell proceeds are recorded from the validated quote and audited as
+an estimate (native inflows don't appear in ERC-20 logs — pretending
+otherwise would be fabrication). The quote's implied fill price is also
+checked against the pipeline's own market price, so the venue's numbers
+are never the only authority. The signer's EVM slot enforces a native
+value cap, a chain-id allowlist, and an optional destination allowlist.
+
+## Deliberate omissions (not oversights)
+- **Coding agent** is proposal-only: an agent that can edit trading logic
+  can edit its own risk limits.
+- **Web agent** stays inert without credentialed APIs rather than scraping
+  in violation of ToS or hallucinating social sentiment.

@@ -1,0 +1,38 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libssl-dev \
+    libffi-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy signer code
+COPY signer/ ./signer/
+
+# Install Python dependencies for signer
+RUN pip install --no-cache-dir \
+    fastapi \
+    uvicorn[standard] \
+    solders \
+    eth-account
+
+# Create non-root user
+RUN useradd -m -u 1001 signer && \
+    chown -R signer:signer /app && \
+    mkdir -p /home/signer && \
+    chown -R signer:signer /home/signer
+
+USER signer
+
+WORKDIR /app/signer
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:8471/health')" || exit 1
+
+EXPOSE 8471
+
+CMD ["uvicorn", "service:app", "--factory", "--host", "0.0.0.0", "--port", "8471"]
