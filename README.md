@@ -34,7 +34,7 @@ code, enforced regardless of what any agent says.
 | External signer service (separate process, own policy, real ed25519 signing) | working, tested; deploy per signer/README.md |
 | Jupiter venue (quote, validation, unsigned tx build) | implemented, fixture-tested; live calls need open egress |
 | Live execution engine (simulate → sign → submit → confirm → reconcile) | implemented, tested against stubs; **stays disabled** until every readiness check passes (`/api/live/readiness`) |
-| EVM live execution | **not implemented** — refuses explicitly |
+| EVM live execution (0x v2 venue, allowance handling, receipt-log fills, per-chain readiness) | implemented, tested against stubs; needs `TRADEOS_ZEROX_API_KEY` + signer EVM key + chain RPC |
 
 ## Quickstart
 

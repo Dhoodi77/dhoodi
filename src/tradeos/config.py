@@ -122,6 +122,7 @@ class Settings(BaseSettings):
     live_max_price_impact_pct: float = 2.0
     live_priority_fee_lamports_max: int = 1_000_000  # 0.001 SOL
     live_confirm_timeout_s: float = 60.0
+    live_gas_limit_multiplier: float = 1.2  # EVM: headroom over estimateGas
 
     @property
     def allowed_chain_list(self) -> list[str]:

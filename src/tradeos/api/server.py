@@ -210,12 +210,13 @@ def create_server(app_state: App | None = None) -> FastAPI:
         return {"ok": True}
 
     @api.get("/api/live/readiness", dependencies=[Depends(check_auth)])
-    async def live_readiness():
-        """Exactly what stands between the current config and live trading.
-        Live stays disabled while 'problems' is non-empty."""
+    async def live_readiness(chain: str = "solana"):
+        """Exactly what stands between the current config and live trading
+        on the given chain. Live stays disabled while 'problems' is
+        non-empty."""
         if state.live_engine is None:
             return {"ready": False, "problems": ["live engine not wired"]}
-        report = await state.live_engine.readiness_full()
+        report = await state.live_engine.readiness_full(chain.lower())
         allowed, gate_problems = state.risk_engine.trading_allowed()
         if not allowed:
             report["ready"] = False

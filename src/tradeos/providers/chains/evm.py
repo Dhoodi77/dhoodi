@@ -72,6 +72,107 @@ class EvmProvider(ChainProvider):
                 })
         return transfers
 
+    # --- transaction lifecycle (used by live execution) -----------------
+    async def get_token_decimals(self, token_address: str) -> int | None:
+        result = await self._rpc("eth_call", [
+            {"to": token_address, "data": "0x313ce567"}, "latest"])  # decimals()
+        try:
+            return int(result, 16)
+        except (TypeError, ValueError):
+            return None
+
+    async def get_allowance(self, token: str, owner: str, spender: str) -> int | None:
+        data = ("0xdd62ed3e"  # allowance(address,address)
+                + owner.lower().replace("0x", "").rjust(64, "0")
+                + spender.lower().replace("0x", "").rjust(64, "0"))
+        result = await self._rpc("eth_call", [{"to": token, "data": data}, "latest"])
+        try:
+            return int(result, 16)
+        except (TypeError, ValueError):
+            return None
+
+    @staticmethod
+    def approve_calldata(spender: str, amount: int) -> str:
+        return ("0x095ea7b3"  # approve(address,uint256)
+                + spender.lower().replace("0x", "").rjust(64, "0")
+                + format(amount, "x").rjust(64, "0"))
+
+    async def get_nonce(self, address: str) -> int | None:
+        result = await self._rpc("eth_getTransactionCount", [address, "pending"])
+        try:
+            return int(result, 16)
+        except (TypeError, ValueError):
+            return None
+
+    async def get_fees(self) -> dict | None:
+        """EIP-1559 fee suggestion: base fee from the head block plus the
+        node's priority-fee estimate, with headroom on the max fee."""
+        block = await self._rpc("eth_getBlockByNumber", ["latest", False])
+        try:
+            base_fee = int(block["baseFeePerGas"], 16)
+        except (TypeError, KeyError, ValueError):
+            return None
+        priority = await self._rpc("eth_maxPriorityFeePerGas", [])
+        try:
+            priority_fee = int(priority, 16)
+        except (TypeError, ValueError):
+            priority_fee = 1_500_000_000  # 1.5 gwei fallback
+        return {"max_fee_per_gas": base_fee * 2 + priority_fee,
+                "max_priority_fee_per_gas": priority_fee}
+
+    async def estimate_gas(self, tx: dict) -> int | None:
+        """Simulation gate: estimateGas executes the call and returns None
+        when it would revert (or the RPC is unreachable) — fail closed."""
+        params = {k: v for k, v in tx.items() if v is not None}
+        result = await self._rpc("eth_estimateGas", [params])
+        try:
+            return int(result, 16)
+        except (TypeError, ValueError):
+            return None
+
+    async def send_raw_transaction(self, raw_hex: str) -> str | None:
+        if not raw_hex.startswith("0x"):
+            raw_hex = "0x" + raw_hex
+        return await self._rpc("eth_sendRawTransaction", [raw_hex])
+
+    async def get_receipt(self, tx_hash: str) -> dict | None:
+        """None until mined; then {'ok': bool, 'gas_used', 'effective_gas_price',
+        'logs'}."""
+        receipt = await self._rpc("eth_getTransactionReceipt", [tx_hash])
+        if not isinstance(receipt, dict):
+            return None
+        try:
+            return {
+                "ok": int(receipt.get("status", "0x0"), 16) == 1,
+                "gas_used": int(receipt.get("gasUsed", "0x0"), 16),
+                "effective_gas_price": int(
+                    receipt.get("effectiveGasPrice", "0x0"), 16),
+                "logs": receipt.get("logs") or [],
+            }
+        except (TypeError, ValueError):
+            return None
+
+    @staticmethod
+    def token_delta_from_logs(logs: list[dict], token: str, wallet: str) -> int:
+        """Net raw token amount transferred to/from the wallet in a receipt."""
+        wallet_topic = "0x" + wallet.lower().replace("0x", "").rjust(64, "0")
+        delta = 0
+        for log in logs:
+            if (log.get("address") or "").lower() != token.lower():
+                continue
+            topics = log.get("topics") or []
+            if len(topics) < 3 or topics[0] != TRANSFER_TOPIC:
+                continue
+            try:
+                value = int(log.get("data", "0x0"), 16)
+            except (TypeError, ValueError):
+                continue
+            if topics[2].lower() == wallet_topic:
+                delta += value
+            if topics[1].lower() == wallet_topic:
+                delta -= value
+        return delta
+
     async def get_holder_summary(self, token_address: str) -> dict | None:
         # Requires an indexer API; not fabricated. Approximate signal from
         # recent transfer logs when RPC is available.

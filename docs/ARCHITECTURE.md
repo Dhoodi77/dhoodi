@@ -205,11 +205,21 @@ limit, its own kill file, and one hard rule — it only signs transactions
 whose fee payer is its own key. Wallets are registered by address only;
 kind='treasury' wallets are refused by the execution path.
 
-## Deliberate omissions (not oversights)
+**EVM (0x Swap API v2, AllowanceHolder flow):** same shape per chain
+(ethereum, base, bsc, arbitrum, polygon), with EVM-specific mechanics —
+`estimateGas` is the independent simulation gate (a revert or unreachable
+RPC fails the trade before signing); the gas budget is priced in USD
+against the instruction's max_gas before submission; sells run an
+exact-amount ERC-20 approval through the same sign/submit/receipt path
+when the venue needs one; buy fills are read from the receipt's Transfer
+logs; sell proceeds are recorded from the validated quote and audited as
+an estimate (native inflows don't appear in ERC-20 logs — pretending
+otherwise would be fabrication). The quote's implied fill price is also
+checked against the pipeline's own market price, so the venue's numbers
+are never the only authority. The signer's EVM slot enforces a native
+value cap, a chain-id allowlist, and an optional destination allowlist.
 
-- **EVM live execution** refuses explicitly: it needs a router integration
-  (0x/1inch-style), EVM transaction simulation, and an EVM signer before
-  it can exist honestly.
+## Deliberate omissions (not oversights)
 - **Coding agent** is proposal-only: an agent that can edit trading logic
   can edit its own risk limits.
 - **Web agent** stays inert without credentialed APIs rather than scraping

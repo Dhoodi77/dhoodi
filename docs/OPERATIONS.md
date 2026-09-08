@@ -66,9 +66,12 @@ holds secrets — back it up separately and encrypted, never into git.
 ## Live trading (Stage 7 — Solana via Jupiter)
 
 The live engine exists and fails closed until every prerequisite is met.
-`GET /api/live/readiness` reports exactly what is missing, including live
-health checks of the signer, venue, and RPC. EVM live execution is not
-implemented and refuses explicitly.
+`GET /api/live/readiness?chain=<chain>` reports exactly what is missing
+per chain, including live health checks of the signer, venue, and RPC.
+Solana trades via Jupiter; EVM chains (ethereum, base, bsc, arbitrum,
+polygon) via 0x Swap API v2 — the EVM path additionally needs
+`TRADEOS_ZEROX_API_KEY`, the signer's EVM key slot, and the chain's
+`TRADEOS_RPC_<CHAIN>` endpoint.
 
 Enable in this order — do not skip steps:
 

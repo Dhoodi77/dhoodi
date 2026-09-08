@@ -229,12 +229,12 @@ async def test_ready_engine_reports_no_problems(db):
     assert report["ready"] is True
 
 
-async def test_evm_chain_refused(db):
-    engine = make_engine(db)
+async def test_evm_chain_refused_without_evm_executor(db):
+    engine = make_engine(db)  # no evm executor wired
     result = await engine.execute(buy_instr(chain="base",
                                             token_address="0xToken"), 1.0)
     assert not result.ok
-    assert "not implemented for chain" in result.error
+    assert "not configured" in result.error
 
 
 async def test_treasury_wallet_refused(db):

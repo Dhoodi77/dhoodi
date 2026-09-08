@@ -26,9 +26,9 @@ SIGNER_DIR = Path(__file__).parent.parent / "signer"
 
 def load_signer_module():
     spec = importlib.util.spec_from_file_location(
-        "solana_signer", SIGNER_DIR / "solana_signer.py")
+        "signer_service", SIGNER_DIR / "service.py")
     module = importlib.util.module_from_spec(spec)
-    sys.modules["solana_signer"] = module
+    sys.modules["signer_service"] = module
     spec.loader.exec_module(module)
     return module
 
@@ -39,12 +39,31 @@ def signer_env(tmp_path, monkeypatch):
     keyfile = tmp_path / "id.json"
     keyfile.write_text(json.dumps(list(bytes(keypair))))
     monkeypatch.setenv("SIGNER_KEYPAIR_PATH", str(keyfile))
+    monkeypatch.delenv("SIGNER_EVM_KEY_PATH", raising=False)
     monkeypatch.setenv("SIGNER_TOKEN", "signer-test-token")
     monkeypatch.setenv("SIGNER_MAX_PER_HOUR", "3")
     module = load_signer_module()
     monkeypatch.setattr(module, "KILL_FILE", tmp_path / "SIGNER_KILLSWITCH")
     client = TestClient(module.create_app())
     return client, keypair, module, tmp_path
+
+
+@pytest.fixture
+def evm_signer_env(tmp_path, monkeypatch):
+    from eth_account import Account
+
+    account = Account.create()
+    keyfile = tmp_path / "evm.key"
+    keyfile.write_text(account.key.hex())
+    monkeypatch.delenv("SIGNER_KEYPAIR_PATH", raising=False)
+    monkeypatch.setenv("SIGNER_EVM_KEY_PATH", str(keyfile))
+    monkeypatch.setenv("SIGNER_TOKEN", "signer-test-token")
+    monkeypatch.setenv("SIGNER_MAX_PER_HOUR", "3")
+    monkeypatch.setenv("SIGNER_EVM_MAX_VALUE_WEI", str(10**17))
+    module = load_signer_module()
+    monkeypatch.setattr(module, "KILL_FILE", tmp_path / "SIGNER_KILLSWITCH")
+    client = TestClient(module.create_app())
+    return client, account, module, tmp_path
 
 
 def unsigned_tx_b64(fee_payer: Keypair) -> str:
@@ -67,7 +86,8 @@ def test_health_reports_fee_payer(signer_env):
     client, keypair, _, _ = signer_env
     body = client.get("/health").json()
     assert body["ok"] is True
-    assert body["fee_payer"] == str(keypair.pubkey())
+    assert body["solana_fee_payer"] == str(keypair.pubkey())
+    assert body["evm_address"] is None
 
 
 def test_auth_required(signer_env):
@@ -123,3 +143,73 @@ def test_unparseable_transaction_rejected(signer_env):
     resp = client.post("/sign", json={"transaction": "bm90IGEgdHg="},
                        headers=AUTH)
     assert resp.status_code == 400
+
+
+def test_evm_endpoint_404_without_evm_key(signer_env):
+    client, _, _, _ = signer_env
+    resp = client.post("/sign-evm", json={"transaction": {}}, headers=AUTH)
+    assert resp.status_code == 404
+
+
+# --- EVM slot -------------------------------------------------------------
+
+def evm_tx(value=10**15, chain_id=8453):
+    return {"chainId": chain_id, "nonce": 0, "to": "0x" + "11" * 20,
+            "value": value, "data": "0x", "gas": 21000,
+            "maxFeePerGas": 10**9, "maxPriorityFeePerGas": 10**8}
+
+
+def test_evm_sign_and_recover(evm_signer_env):
+    from eth_account import Account
+
+    client, account, _, _ = evm_signer_env
+    resp = client.post("/sign-evm", json={"transaction": evm_tx(),
+                                          "intent": {"t": 1}}, headers=AUTH)
+    assert resp.status_code == 200, resp.text
+    raw = resp.json()["raw_transaction"]
+    assert Account.recover_transaction(raw) == account.address
+
+
+def test_evm_value_cap_enforced(evm_signer_env):
+    client, _, _, _ = evm_signer_env
+    resp = client.post("/sign-evm", json={"transaction": evm_tx(value=10**18)},
+                       headers=AUTH)
+    assert resp.status_code == 403
+    assert "value" in resp.json()["detail"]
+
+
+def test_evm_chain_allowlist(evm_signer_env):
+    client, _, _, _ = evm_signer_env
+    resp = client.post("/sign-evm", json={"transaction": evm_tx(chain_id=999)},
+                       headers=AUTH)
+    assert resp.status_code == 403
+
+
+def test_evm_missing_fields_rejected(evm_signer_env):
+    client, _, _, _ = evm_signer_env
+    tx = evm_tx()
+    del tx["nonce"]
+    resp = client.post("/sign-evm", json={"transaction": tx}, headers=AUTH)
+    assert resp.status_code == 400
+
+
+def test_evm_to_allowlist(tmp_path, monkeypatch):
+    from eth_account import Account
+
+    account = Account.create()
+    keyfile = tmp_path / "evm.key"
+    keyfile.write_text(account.key.hex())
+    monkeypatch.delenv("SIGNER_KEYPAIR_PATH", raising=False)
+    monkeypatch.setenv("SIGNER_EVM_KEY_PATH", str(keyfile))
+    monkeypatch.setenv("SIGNER_TOKEN", "signer-test-token")
+    monkeypatch.setenv("SIGNER_EVM_TO_ALLOWLIST", "0x" + "22" * 20)
+    module = load_signer_module()
+    monkeypatch.setattr(module, "KILL_FILE", tmp_path / "SIGNER_KILLSWITCH")
+    client = TestClient(module.create_app())
+    resp = client.post("/sign-evm", json={"transaction": evm_tx()}, headers=AUTH)
+    assert resp.status_code == 403
+    assert "allowlist" in resp.json()["detail"]
+    ok = client.post("/sign-evm", json={"transaction": {**evm_tx(),
+                                                       "to": "0x" + "22" * 20}},
+                     headers=AUTH)
+    assert ok.status_code == 200

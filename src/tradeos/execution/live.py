@@ -52,7 +52,8 @@ class LiveExecutionEngine:
                  venue: JupiterVenue | None = None,
                  solana: SolanaProvider | None = None,
                  market=None,
-                 accounting: PortfolioAccounting | None = None):
+                 accounting: PortfolioAccounting | None = None,
+                 evm=None):
         self.settings = settings
         self.db = db
         self.registry = registry
@@ -61,20 +62,24 @@ class LiveExecutionEngine:
         self.solana = solana
         self.market = market
         self.accounting = accounting
+        self.evm = evm  # EvmLiveExecutor | None
 
     # --- readiness -----------------------------------------------------
     def readiness_problems(self, chain: str = "solana") -> list[str]:
         """Config-level prerequisites. Any entry here means live execution
         must refuse. Deliberately cheap and synchronous so the gateway can
         gate on it for every single trade."""
+        if chain != "solana":
+            if self.evm is None:
+                return [f"live execution for chain {chain!r} not configured "
+                        "(EVM needs TRADEOS_ZEROX_API_KEY, signer EVM key, "
+                        "and a chain RPC)"]
+            return self.evm.readiness_problems(chain)
         problems: list[str] = []
         if self.settings.mode != Mode.LIVE:
             problems.append(f"mode is {self.settings.mode.value}, not live")
         if self.settings.live_trading_confirm != "I_UNDERSTAND_THE_RISKS":
             problems.append("TRADEOS_LIVE_TRADING_CONFIRM not set")
-        if chain != "solana":
-            problems.append(f"live execution not implemented for chain {chain!r} "
-                            "(solana/jupiter only)")
         if self.registry is None or self.registry.trading_wallet(chain) is None:
             problems.append("no active trading wallet registered for chain")
         if self.signer is None or not self.signer.configured:
@@ -96,6 +101,23 @@ class LiveExecutionEngine:
         endpoint. Never called in the per-trade hot path."""
         problems = self.readiness_problems(chain)
         checks: dict[str, bool] = {}
+        if chain != "solana":
+            if self.evm is not None:
+                if self.signer is not None and self.signer.configured:
+                    checks["signer_healthy"] = await self.signer.health()
+                    if not checks["signer_healthy"]:
+                        problems.append("signer health check failed")
+                venue_health = await self.evm.venue.health_check(chain)
+                checks["venue_healthy"] = bool(venue_health.get("ok"))
+                if not checks["venue_healthy"]:
+                    problems.append("0x venue health check failed")
+                provider = self.evm.providers.get(chain)
+                if provider is not None and getattr(provider, "rpc_url", None):
+                    checks["rpc_healthy"] = await provider.is_available()
+                    if not checks["rpc_healthy"]:
+                        problems.append(f"{chain} rpc health check failed")
+            return {"ready": len(problems) == 0, "problems": problems,
+                    "checks": checks}
         if self.signer is not None and self.signer.configured:
             checks["signer_healthy"] = await self.signer.health()
             if not checks["signer_healthy"]:
@@ -139,6 +161,12 @@ class LiveExecutionEngine:
     # --- execution -----------------------------------------------------
     async def execute(self, instr: TradeInstruction,
                       market_price_usd: float) -> ExecutionResult:
+        if instr.chain != "solana":
+            if self.evm is None:
+                return self._fail(
+                    instr, "live prerequisites missing: "
+                    + "; ".join(self.readiness_problems(instr.chain)))
+            return await self.evm.execute(instr, market_price_usd)
         problems = self.readiness_problems(instr.chain)
         if problems:
             return self._fail(instr, "live prerequisites missing: "
@@ -388,8 +416,13 @@ class LiveExecutionEngine:
         """Resolve live trades stuck in 'pending' (crash, lost response,
         confirmation timeout). Called by the monitor loop and at startup."""
         resolved = 0
+        if self.evm is not None:
+            resolved += await self.evm.reconcile_pending()
+        if self.registry is None or self.solana is None:
+            return resolved  # solana leg unwired; nothing it could resolve
         pending = self.db.query(
-            "SELECT * FROM trades WHERE mode = 'live' AND status = 'pending'")
+            "SELECT * FROM trades WHERE mode = 'live' AND status = 'pending' "
+            "AND chain = 'solana'")
         for trade in pending:
             if not trade["tx_hash"]:
                 # Signed (maybe) but no signature recorded: cannot ever

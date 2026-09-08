@@ -133,9 +133,16 @@ Real-time reactions:
 | `TRADEOS_LIVE_CONFIRM_TIMEOUT_S` | 60 | confirmation polling window before handing off to reconciliation |
 | `TRADEOS_JUPITER_BASE_URL` | lite-api.jup.ag/swap/v1 | override if Jupiter moves hosts |
 
+| `TRADEOS_ZEROX_API_KEY` | — | 0x Swap API v2 key; enables the EVM live executor (still gated by readiness) |
+| `TRADEOS_ZEROX_BASE_URL` | api.0x.org | override if 0x moves hosts |
+| `TRADEOS_LIVE_GAS_LIMIT_MULTIPLIER` | 1.2 | EVM gas-limit headroom over estimateGas |
+
 Live execution refuses unless ALL of: mode=live, confirm phrase, an active
-registered trading wallet (`POST /api/wallets`, address only), signer
-configured and healthy, Solana RPC (Helius key or `TRADEOS_RPC_SOLANA`),
-and complete risk policy. `GET /api/live/readiness` lists what's missing.
-EVM live execution is not implemented and refuses explicitly. Full
+registered trading wallet for the chain (`POST /api/wallets`, address
+only), signer configured and healthy (Solana key for Jupiter, EVM key for
+0x — see signer/README.md), the chain's RPC, the venue key, and complete
+risk policy. `GET /api/live/readiness?chain=<chain>` lists what's missing
+per chain. On EVM, sells run an exact-amount ERC-20 approval first when
+needed; sell proceeds are recorded from the validated quote (audited as
+an estimate) since native inflows don't appear in ERC-20 logs. Full
 enablement procedure: docs/OPERATIONS.md.

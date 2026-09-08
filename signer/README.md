@@ -1,7 +1,13 @@
 # TradeOS External Signer
 
-The one place the private key exists. TradeOS never sees it — it sends
+The one place private keys exist. TradeOS never sees them — it sends
 unsigned transactions here and gets back a signed transaction or a refusal.
+Two independent key slots, each enabled only when configured:
+
+| Slot | Env var | Endpoint | Extra policy |
+|---|---|---|---|
+| Solana | `SIGNER_KEYPAIR_PATH` (solana-cli id.json) | `POST /sign` | fee payer must be its own key |
+| EVM | `SIGNER_EVM_KEY_PATH` (file with hex private key) | `POST /sign-evm` | native value cap (`SIGNER_EVM_MAX_VALUE_WEI`, default 0.1), chain-id allowlist (`SIGNER_EVM_CHAIN_IDS`), optional `SIGNER_EVM_TO_ALLOWLIST` |
 
 ## Security model
 
@@ -18,12 +24,15 @@ unsigned transactions here and gets back a signed transaction or a refusal.
 ## Run
 
 ```bash
-pip install fastapi uvicorn solders
+pip install fastapi uvicorn solders eth-account
 export SIGNER_KEYPAIR_PATH=/home/signer/.config/solana/id.json  # chmod 400
+export SIGNER_EVM_KEY_PATH=/home/signer/evm.key                 # chmod 400
 export SIGNER_TOKEN=$(python3 -c "import secrets;print(secrets.token_urlsafe(32))")
 export SIGNER_MAX_PER_HOUR=30
-uvicorn 'solana_signer:app' --factory --host 127.0.0.1 --port 8471
+uvicorn 'service:app' --factory --host 127.0.0.1 --port 8471
 ```
+
+Configure only the key slots you actually trade with; either alone works.
 
 Then in TradeOS's `.env`:
 

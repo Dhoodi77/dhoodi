@@ -70,6 +70,36 @@ class RemoteSignerClient:
             raise RuntimeError("signer returned no transaction")
         return signed
 
+    async def sign_evm(self, tx: dict, chain: str, wallet_address: str,
+                       intent: dict) -> str:
+        """Signs an EIP-1559 transaction dict. Returns the raw signed tx hex.
+        Same failure semantics as sign()."""
+        if not self._client or not self.configured:
+            raise RuntimeError("signer not configured")
+        try:
+            resp = await self._client.post(
+                f"{self.url}/sign-evm",
+                headers={"Authorization": f"Bearer {self.token}"},
+                json={"transaction": tx, "chain": chain,
+                      "wallet_address": wallet_address, "intent": intent})
+        except httpx.HTTPError as exc:
+            raise RuntimeError(f"signer unreachable: {type(exc).__name__}")
+        if resp.status_code == 403:
+            detail = ""
+            try:
+                detail = resp.json().get("detail", "")
+            except ValueError:
+                pass
+            raise SignerRefused(detail or "signer policy refused")
+        if resp.status_code == 404:
+            raise RuntimeError("signer has no EVM key configured")
+        if resp.status_code != 200:
+            raise RuntimeError(f"signer error http {resp.status_code}")
+        raw = resp.json().get("raw_transaction")
+        if not isinstance(raw, str) or not raw:
+            raise RuntimeError("signer returned no transaction")
+        return raw
+
     async def close(self) -> None:
         if self._client:
             await self._client.aclose()
