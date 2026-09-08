@@ -1,0 +1,216 @@
+version: '3.9'
+
+services:
+  # PostgreSQL database - persistent storage for all trading state
+  postgres:
+    image: postgres:16-alpine
+    container_name: tradeos-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: tradeos
+      POSTGRES_USER: tradeos
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+      POSTGRES_INITDB_ARGS: "-c max_connections=100 -c shared_buffers=256MB"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/postgres-init.sql:/docker-entrypoint-initdb.d/01-init.sql
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tradeos -d tradeos"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - tradeos-net
+
+  # Redis - for job queue and caching (optional, for future expansion)
+  redis:
+    image: redis:7-alpine
+    container_name: tradeos-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - tradeos-net
+
+  # External Signer Service - isolated wallet signing
+  signer:
+    build:
+      context: .
+      dockerfile: Dockerfile.signer
+    container_name: tradeos-signer
+    restart: unless-stopped
+    environment:
+      SIGNER_TOKEN: ${SIGNER_TOKEN}
+      SIGNER_KEYPAIR_PATH: ${SIGNER_KEYPAIR_PATH:-}
+      SIGNER_EVM_KEY_PATH: ${SIGNER_EVM_KEY_PATH:-}
+      SIGNER_MAX_PER_HOUR: ${SIGNER_MAX_PER_HOUR:-30}
+      SIGNER_EVM_MAX_VALUE_WEI: ${SIGNER_EVM_MAX_VALUE_WEI:-100000000000000000}
+      SIGNER_EVM_CHAIN_IDS: ${SIGNER_EVM_CHAIN_IDS:-1,8453,56,42161,137}
+    volumes:
+      - signer_config:/home/signer:ro
+    ports:
+      - "127.0.0.1:8471:8471"
+    networks:
+      - tradeos-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # Main TradeOS Application
+  tradeos:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tradeos-app
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      signer:
+        condition: service_healthy
+    environment:
+      # Mode: development | paper | live
+      TRADEOS_MODE: ${TRADEOS_MODE:-paper}
+
+      # API Configuration
+      TRADEOS_API_HOST: 0.0.0.0
+      TRADEOS_API_PORT: 8420
+      TRADEOS_DASHBOARD_TOKEN: ${TRADEOS_DASHBOARD_TOKEN}
+
+      # Database (PostgreSQL, not SQLite)
+      TRADEOS_DATABASE_PATH: postgresql://tradeos:${DB_PASSWORD:-changeme}@postgres:5432/tradeos
+
+      # LLM Configuration
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      TRADEOS_MODEL_FAST: ${TRADEOS_MODEL_FAST:-claude-haiku-4-5}
+      TRADEOS_MODEL_REASONING: ${TRADEOS_MODEL_REASONING:-claude-opus-5}
+      TRADEOS_MODEL_DECISION: ${TRADEOS_MODEL_DECISION:-claude-opus-5}
+
+      # Risk Policy (REQUIRED for any trading)
+      TRADEOS_RISK_MAX_INITIAL_POSITION_USD: ${TRADEOS_RISK_MAX_INITIAL_POSITION_USD:-20}
+      TRADEOS_RISK_MAX_POSITION_USD: ${TRADEOS_RISK_MAX_POSITION_USD:-20}
+      TRADEOS_RISK_MAX_DAILY_LOSS_USD: ${TRADEOS_RISK_MAX_DAILY_LOSS_USD:-40}
+      TRADEOS_RISK_MAX_PORTFOLIO_EXPOSURE_USD: ${TRADEOS_RISK_MAX_PORTFOLIO_EXPOSURE_USD:-100}
+      TRADEOS_RISK_MAX_SLIPPAGE_PCT: ${TRADEOS_RISK_MAX_SLIPPAGE_PCT:-3.0}
+      TRADEOS_RISK_MAX_GAS_USD: ${TRADEOS_RISK_MAX_GAS_USD:-2.0}
+      TRADEOS_RISK_MAX_OPEN_POSITIONS: ${TRADEOS_RISK_MAX_OPEN_POSITIONS:-5}
+      TRADEOS_RISK_MAX_DRAWDOWN_PCT: ${TRADEOS_RISK_MAX_DRAWDOWN_PCT:-25}
+      TRADEOS_RISK_EMERGENCY_STOP_LOSS_USD: ${TRADEOS_RISK_EMERGENCY_STOP_LOSS_USD:-80}
+
+      # Trading Universe
+      TRADEOS_ALLOWED_CHAINS: ${TRADEOS_ALLOWED_CHAINS:-solana,ethereum,base,bsc,arbitrum,polygon}
+      TRADEOS_MIN_LIQUIDITY_USD: ${TRADEOS_MIN_LIQUIDITY_USD:-25000}
+      TRADEOS_MIN_VOLUME_24H_USD: ${TRADEOS_MIN_VOLUME_24H_USD:-50000}
+      TRADEOS_MIN_TOKEN_AGE_HOURS: ${TRADEOS_MIN_TOKEN_AGE_HOURS:-1}
+
+      # Paper Trading
+      TRADEOS_PAPER_STARTING_BALANCE_USD: ${TRADEOS_PAPER_STARTING_BALANCE_USD:-500}
+      TRADEOS_PAPER_SIMULATED_SLIPPAGE_PCT: ${TRADEOS_PAPER_SIMULATED_SLIPPAGE_PCT:-1.0}
+
+      # Exit Rules
+      TRADEOS_EXIT_STOP_LOSS_PCT: ${TRADEOS_EXIT_STOP_LOSS_PCT:-15}
+      TRADEOS_EXIT_TAKE_PROFIT_PCT: ${TRADEOS_EXIT_TAKE_PROFIT_PCT:-30}
+      TRADEOS_EXIT_MAX_HOLD_HOURS: ${TRADEOS_EXIT_MAX_HOLD_HOURS:-24}
+
+      # Scheduler
+      TRADEOS_DISCOVERY_INTERVAL_S: ${TRADEOS_DISCOVERY_INTERVAL_S:-120}
+      TRADEOS_MONITOR_INTERVAL_S: ${TRADEOS_MONITOR_INTERVAL_S:-30}
+
+      # Blockchain Indexers
+      TRADEOS_HELIUS_API_KEY: ${TRADEOS_HELIUS_API_KEY:-}
+      TRADEOS_ETHERSCAN_API_KEY: ${TRADEOS_ETHERSCAN_API_KEY:-}
+
+      # Smart Money Scanning
+      TRADEOS_SMARTMONEY_SCAN_INTERVAL_S: ${TRADEOS_SMARTMONEY_SCAN_INTERVAL_S:-600}
+      TRADEOS_SMARTMONEY_MAX_WALLETS_PER_SCAN: ${TRADEOS_SMARTMONEY_MAX_WALLETS_PER_SCAN:-8}
+      TRADEOS_SMARTMONEY_MIN_WALLET_TRADES: ${TRADEOS_SMARTMONEY_MIN_WALLET_TRADES:-3}
+      TRADEOS_SMARTMONEY_SCORE_THRESHOLD: ${TRADEOS_SMARTMONEY_SCORE_THRESHOLD:-65}
+      TRADEOS_WHALE_SOL_THRESHOLD: ${TRADEOS_WHALE_SOL_THRESHOLD:-50}
+      TRADEOS_WHALE_USD_THRESHOLD: ${TRADEOS_WHALE_USD_THRESHOLD:-5000}
+
+      # Webhooks (requires public HTTPS URL)
+      TRADEOS_PUBLIC_URL: ${TRADEOS_PUBLIC_URL:-}
+      TRADEOS_HELIUS_WEBHOOK_SECRET: ${TRADEOS_HELIUS_WEBHOOK_SECRET:-}
+      TRADEOS_WEBHOOK_MAX_ADDRESSES: ${TRADEOS_WEBHOOK_MAX_ADDRESSES:-100}
+
+      # Live Trading (DISABLED by default)
+      TRADEOS_LIVE_TRADING_CONFIRM: ${TRADEOS_LIVE_TRADING_CONFIRM:-}
+      TRADEOS_SIGNER_URL: http://signer:8471
+      TRADEOS_SIGNER_TOKEN: ${SIGNER_TOKEN}
+      TRADEOS_LIVE_MAX_PRICE_IMPACT_PCT: ${TRADEOS_LIVE_MAX_PRICE_IMPACT_PCT:-2.0}
+      TRADEOS_LIVE_PRIORITY_FEE_LAMPORTS_MAX: ${TRADEOS_LIVE_PRIORITY_FEE_LAMPORTS_MAX:-1000000}
+      TRADEOS_LIVE_CONFIRM_TIMEOUT_S: ${TRADEOS_LIVE_CONFIRM_TIMEOUT_S:-60}
+      TRADEOS_ZEROX_API_KEY: ${TRADEOS_ZEROX_API_KEY:-}
+      TRADEOS_LIVE_GAS_LIMIT_MULTIPLIER: ${TRADEOS_LIVE_GAS_LIMIT_MULTIPLIER:-1.2}
+
+      # RPC Endpoints
+      TRADEOS_RPC_SOLANA: ${TRADEOS_RPC_SOLANA:-}
+      TRADEOS_RPC_ETHEREUM: ${TRADEOS_RPC_ETHEREUM:-}
+      TRADEOS_RPC_BASE: ${TRADEOS_RPC_BASE:-}
+      TRADEOS_RPC_BSC: ${TRADEOS_RPC_BSC:-}
+      TRADEOS_RPC_ARBITRUM: ${TRADEOS_RPC_ARBITRUM:-}
+      TRADEOS_RPC_POLYGON: ${TRADEOS_RPC_POLYGON:-}
+
+    volumes:
+      - tradeos_logs:/app/logs
+    ports:
+      - "127.0.0.1:8420:8420"
+    networks:
+      - tradeos-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8420/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Nginx Reverse Proxy with HTTPS
+  nginx:
+    image: nginx:alpine
+    container_name: tradeos-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+      - nginx_cache:/var/cache/nginx
+    depends_on:
+      - tradeos
+    networks:
+      - tradeos-net
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  signer_config:
+    driver: local
+  tradeos_logs:
+    driver: local
+  nginx_cache:
+    driver: local
+
+networks:
+  tradeos-net:
+    driver: bridge
