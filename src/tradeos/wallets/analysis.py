@@ -1,9 +1,12 @@
 """Wallet trade-history analysis: swaps -> WalletPerformance.
 
-Works on SOL-denominated round trips only (SOL -> token -> SOL), matched
-per mint with average cost basis. Sells with no observed prior buy are
-ignored — history windows are finite and attributing unknown cost would
-fabricate performance. This makes scores conservative rather than flattering.
+Round trips are matched per (mint, counter asset) with average cost basis:
+SOL round trips on Solana, and stable/WETH/native round trips on EVM.
+Buys and sells only match within the same counter asset — return
+percentages are unit-independent, so no price feed is needed. Sells with
+no observed prior buy are ignored — history windows are finite and
+attributing unknown cost would fabricate performance. This makes scores
+conservative rather than flattering.
 """
 from __future__ import annotations
 
@@ -29,8 +32,9 @@ class RoundTrip:
 
 def extract_round_trips(swaps: list[dict]) -> list[RoundTrip]:
     """swaps: dict rows with token_mint, direction, token_amount, sol_amount,
-    block_time. Processed chronologically per mint with average cost basis."""
-    positions: dict[str, dict] = {}  # mint -> {qty, cost_sol}
+    block_time and optionally counter_mint. Processed chronologically per
+    (mint, counter) with average cost basis."""
+    positions: dict[tuple, dict] = {}  # (mint, counter) -> {qty, cost_sol}
     trips: list[RoundTrip] = []
     for swap in sorted(swaps, key=lambda s: s.get("block_time") or 0):
         mint = swap.get("token_mint")
@@ -38,7 +42,8 @@ def extract_round_trips(swaps: list[dict]) -> list[RoundTrip]:
         sol = float(swap.get("sol_amount") or 0)
         if not mint or qty <= 0 or sol <= 0:
             continue
-        pos = positions.setdefault(mint, {"qty": 0.0, "cost_sol": 0.0})
+        key = (mint, swap.get("counter_mint"))
+        pos = positions.setdefault(key, {"qty": 0.0, "cost_sol": 0.0})
         if swap.get("direction") == "buy":
             pos["qty"] += qty
             pos["cost_sol"] += sol

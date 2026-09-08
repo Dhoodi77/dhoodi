@@ -18,7 +18,7 @@ import time
 
 from tradeos.config import Settings
 from tradeos.db.database import Database
-from tradeos.providers.chains.helius import HeliusProvider, SwapRecord
+from tradeos.providers.swaps import SwapRecord
 from tradeos.wallets.analysis import analyze_wallet_swaps
 from tradeos.wallets.reputation import WalletReputationStore
 
@@ -28,14 +28,17 @@ RESCORE_AFTER_S = 6 * 3600
 
 
 class SmartMoneyScanner:
-    chain = "solana"
+    """Chain-agnostic: works with any swap source exposing
+    get_address_swaps(wallet) and optionally token_activity(mint)
+    (HeliusProvider for Solana, EtherscanSwapSource per EVM chain)."""
 
-    def __init__(self, settings: Settings, db: Database, helius: HeliusProvider,
-                 reputation: WalletReputationStore):
+    def __init__(self, settings: Settings, db: Database, swap_source,
+                 reputation: WalletReputationStore, chain: str = "solana"):
         self.settings = settings
         self.db = db
-        self.helius = helius
+        self.swap_source = swap_source
         self.reputation = reputation
+        self.chain = chain
 
     # --- persistence ---------------------------------------------------
     def store_swaps(self, records: list[SwapRecord]) -> int:
@@ -67,25 +70,30 @@ class SmartMoneyScanner:
                 mints.append(row["token_address"])
         return mints[:limit]
 
-    def candidate_wallets(self, mints: list[str]) -> list[str]:
-        """Wallets that recently traded the candidate tokens, most active
-        first, excluding ones scored recently."""
-        if not mints:
-            return []
-        placeholders = ",".join("?" for _ in mints)
-        rows = self.db.query(
-            f"SELECT wallet, COUNT(*) AS n FROM wallet_swaps "
-            f"WHERE chain = ? AND token_mint IN ({placeholders}) "
-            f"AND block_time >= ? GROUP BY wallet ORDER BY n DESC LIMIT 50",
-            (self.chain, *mints, time.time() - 48 * 3600))
-        fresh: list[str] = []
-        for row in rows:
-            scored = self.db.query_one(
-                "SELECT scored_at FROM wallet_scores WHERE chain = ? AND address = ? "
-                "ORDER BY scored_at DESC LIMIT 1", (self.chain, row["wallet"]))
-            if scored is None or time.time() - scored["scored_at"] > RESCORE_AFTER_S:
-                fresh.append(row["wallet"])
-        return fresh
+    def _needs_scoring(self, wallet: str) -> bool:
+        scored = self.db.query_one(
+            "SELECT scored_at FROM wallet_scores WHERE chain = ? AND address = ? "
+            "ORDER BY scored_at DESC LIMIT 1", (self.chain, wallet))
+        return scored is None or time.time() - scored["scored_at"] > RESCORE_AFTER_S
+
+    def candidate_wallets(self, mints: list[str],
+                          extra: list[str] = ()) -> list[str]:
+        """Wallets that recently traded the candidate tokens (most active
+        first, from stored swaps), plus extra candidates from the source,
+        excluding recently scored ones."""
+        ordered: list[str] = []
+        if mints:
+            placeholders = ",".join("?" for _ in mints)
+            rows = self.db.query(
+                f"SELECT wallet, COUNT(*) AS n FROM wallet_swaps "
+                f"WHERE chain = ? AND token_mint IN ({placeholders}) "
+                f"AND block_time >= ? GROUP BY wallet ORDER BY n DESC LIMIT 50",
+                (self.chain, *mints, time.time() - 48 * 3600))
+            ordered = [row["wallet"] for row in rows]
+        for wallet in extra:
+            if wallet not in ordered:
+                ordered.append(wallet)
+        return [w for w in ordered if self._needs_scoring(w)]
 
     def discover_candidate_mints(self, since_hours: float = 6.0,
                                  limit: int = 5) -> list[str]:
@@ -114,26 +122,39 @@ class SmartMoneyScanner:
                 candidates.append(row["token_mint"])
         return candidates[:limit]
 
+    async def _token_activity(self, mint: str):
+        """(records, candidate wallets) for a token. Sources without a
+        token_activity method (Helius-style) derive both from the token's
+        own parsed swap feed."""
+        if hasattr(self.swap_source, "token_activity"):
+            return await self.swap_source.token_activity(mint)
+        records = await self.swap_source.get_address_swaps(mint)
+        return records, [r.wallet for r in records]
+
     # --- scan ----------------------------------------------------------
     async def scan(self) -> dict:
         """One scan pass. Returns counters plus flywheel candidates."""
-        stats = {"tokens": 0, "swaps_stored": 0, "wallets_analyzed": 0,
-                 "wallets_scored": 0, "candidate_mints": []}
+        stats = {"chain": self.chain, "tokens": 0, "swaps_stored": 0,
+                 "wallets_analyzed": 0, "wallets_scored": 0,
+                 "candidate_mints": []}
         mints = self.candidate_tokens()
+        traders: list[str] = []
         for mint in mints:
-            records = await self.helius.get_address_swaps(mint)
+            records, wallets = await self._token_activity(mint)
             stats["swaps_stored"] += self.store_swaps(records)
+            traders += [w for w in wallets if w not in traders]
             stats["tokens"] += 1
 
-        for wallet in self.candidate_wallets(mints)[
+        for wallet in self.candidate_wallets(mints, traders)[
                 : self.settings.smartmoney_max_wallets_per_scan]:
-            records = await self.helius.get_address_swaps(wallet)
+            records = await self.swap_source.get_address_swaps(wallet)
             self.store_swaps(records)
             stats["wallets_analyzed"] += 1
             history = self.db.query(
-                "SELECT token_mint, direction, token_amount, sol_amount, block_time "
-                "FROM wallet_swaps WHERE chain = ? AND wallet = ? "
-                "ORDER BY block_time", (self.chain, wallet))
+                "SELECT token_mint, direction, token_amount, sol_amount, "
+                "counter_mint, block_time FROM wallet_swaps "
+                "WHERE chain = ? AND wallet = ? ORDER BY block_time",
+                (self.chain, wallet))
             perf = analyze_wallet_swaps(history)
             if perf is None or perf.trade_count < self.settings.smartmoney_min_wallet_trades:
                 continue

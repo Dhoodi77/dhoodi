@@ -99,6 +99,7 @@ class OpportunityPipeline:
             pair.chain, pair.token_address,
             smart_threshold=self.settings.smartmoney_score_threshold,
             whale_sol_threshold=self.settings.whale_sol_threshold,
+            whale_usd_threshold=self.settings.whale_usd_threshold,
         )
         score = score_opportunity(
             pair, self.scoring,

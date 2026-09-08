@@ -80,6 +80,20 @@ With the key set, opportunities get real `smart_money_score` and
 `whale_score` values derived from recorded swaps; without it those stay
 null and scoring uses its neutral default.
 
+## Etherscan V2 (EVM wallet intelligence)
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `TRADEOS_ETHERSCAN_API_KEY` | — | one free key covers ethereum, base, bsc, arbitrum, polygon (V2 unified API); enables per-chain smart-money scanners |
+| `TRADEOS_WHALE_USD_THRESHOLD` | 5000 | EVM whale swap size; only stablecoin-denominated swaps count (USD-unambiguous) |
+
+Etherscan has no parsed-swap API, so swaps are reconstructed per
+transaction hash from token transfers plus normal/internal transactions,
+and only unambiguous single-token-vs-counter swaps are recorded (counters:
+WETH/WBNB/WPOL, USDC/USDT/DAI variants, native coin). Multi-hop routes are
+skipped. Round trips match within the same counter asset, so no price feed
+is needed for return percentages.
+
 ## Helius webhooks (real-time wallet tracking)
 
 | Variable | Default | Meaning |

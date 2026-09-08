@@ -19,30 +19,19 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from dataclasses import dataclass
 
 import httpx
 
 from tradeos.providers.chains.solana import SolanaProvider
+from tradeos.providers.swaps import SwapRecord
+
+__all__ = ["HeliusProvider", "SwapRecord", "parse_enhanced_swap", "WSOL_MINT"]
 
 logger = logging.getLogger(__name__)
 
 WSOL_MINT = "So11111111111111111111111111111111111111112"
 RPC_BASE = "https://mainnet.helius-rpc.com/"
 API_BASE = "https://api.helius.xyz"
-
-
-@dataclass
-class SwapRecord:
-    chain: str
-    wallet: str
-    signature: str
-    token_mint: str
-    direction: str            # buy | sell (of token_mint, against SOL)
-    token_amount: float
-    sol_amount: float
-    counter_mint: str
-    block_time: float
 
 
 def _raw_amount(entry: dict) -> float:

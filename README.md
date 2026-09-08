@@ -24,6 +24,7 @@ code, enforced regardless of what any agent says.
 | Token smart-money / whale flow signals feeding opportunity scoring and the critic | working, tested |
 | Helius webhooks: real-time tracked-wallet events (self-registering, secret-authenticated) | implemented, tested; needs `TRADEOS_PUBLIC_URL` + webhook secret |
 | Smart-money discovery flywheel (tokens smart wallets buy enter the pipeline) | working, tested |
+| Etherscan V2 EVM wallet intelligence (5 chains, one key; deterministic swap reconstruction) | implemented, fixture-tested; needs `TRADEOS_ETHERSCAN_API_KEY` |
 | Provider health checks at startup (DexScreener + Helius shape validation) | working, tested |
 | Signal-outcome tracking (`/api/signals/performance` win rates per signal bucket) | working, tested |
 | Position monitor (stop-loss / take-profit / max-hold) + post-trade reviews | working, tested |

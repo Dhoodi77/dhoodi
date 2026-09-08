@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from dataclasses import dataclass
 
 from tradeos.agents.coding_agent import CodingAgent
@@ -25,6 +26,8 @@ from tradeos.orchestration.pipeline import OpportunityPipeline
 from tradeos.orchestration.scheduler import Scheduler
 from tradeos.portfolio.accounting import PortfolioAccounting
 from tradeos.providers.chains import build_chain_providers
+from tradeos.providers.chains.etherscan import (
+    CHAIN_IDS, EtherscanProvider, EtherscanSwapSource)
 from tradeos.providers.chains.helius import HeliusProvider
 from tradeos.providers.dexscreener import DexScreenerProvider
 from tradeos.risk.engine import RiskEngine
@@ -55,6 +58,7 @@ class App:
     agents: dict
     smartmoney_scanner: SmartMoneyScanner | None = None
     webhook_manager: HeliusWebhookManager | None = None
+    scanners: list = None
 
 
 def build_app(settings: Settings | None = None) -> App:
@@ -81,13 +85,28 @@ def build_app(settings: Settings | None = None) -> App:
     memory = MemoryStore(db)
     reputation = WalletReputationStore(db)
 
-    scanner = None
+    scanners: list[SmartMoneyScanner] = []
+    scanner = None  # the solana scanner, used by the webhook manager
     solana_provider = chain_providers.get("solana")
     if isinstance(solana_provider, HeliusProvider):
-        scanner = SmartMoneyScanner(settings, db, solana_provider, reputation)
-        logger.info("Helius indexer configured: smart-money scanner enabled")
+        scanner = SmartMoneyScanner(settings, db, solana_provider, reputation,
+                                    chain="solana")
+        scanners.append(scanner)
+        logger.info("Helius indexer configured: solana smart-money scanner enabled")
     else:
-        logger.info("no TRADEOS_HELIUS_API_KEY: smart-money scanner disabled")
+        logger.info("no TRADEOS_HELIUS_API_KEY: solana smart-money scanner disabled")
+
+    etherscan_key = os.environ.get("TRADEOS_ETHERSCAN_API_KEY")
+    if etherscan_key:
+        etherscan = EtherscanProvider(etherscan_key)
+        evm_chains = [c for c in settings.allowed_chain_list if c in CHAIN_IDS]
+        for chain in evm_chains:
+            scanners.append(SmartMoneyScanner(
+                settings, db, EtherscanSwapSource(etherscan, chain),
+                reputation, chain=chain))
+        logger.info("Etherscan indexer configured for: %s", ", ".join(evm_chains))
+    else:
+        logger.info("no TRADEOS_ETHERSCAN_API_KEY: EVM smart-money scanners disabled")
 
     agents = {
         "research": ResearchAgent(settings, db, llm),
@@ -118,9 +137,9 @@ def build_app(settings: Settings | None = None) -> App:
             pipeline=pipeline, market=market)
 
     scheduler = Scheduler(settings, db, market, pipeline, monitor,
-                          smartmoney_scanner=scanner,
+                          smartmoney_scanners=scanners,
                           webhook_manager=webhook_manager)
 
     return App(settings, db, kill_switch, risk_engine, accounting, gateway,
                market, pipeline, monitor, scheduler, llm, memory, reputation,
-               agents, scanner, webhook_manager)
+               agents, scanner, webhook_manager, scanners)

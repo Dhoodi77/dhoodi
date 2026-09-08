@@ -104,6 +104,7 @@ class Settings(BaseSettings):
     smartmoney_min_wallet_trades: int = 3
     smartmoney_score_threshold: float = 65.0
     whale_sol_threshold: float = 50.0
+    whale_usd_threshold: float = 5000.0  # EVM whale swaps (stable-denominated)
 
     # Helius webhooks (real-time tracked-wallet events). Both must be set for
     # webhook registration: the public HTTPS base URL this instance is

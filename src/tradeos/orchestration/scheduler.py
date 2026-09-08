@@ -24,13 +24,13 @@ logger = logging.getLogger(__name__)
 class Scheduler:
     def __init__(self, settings: Settings, db: Database, market: DexScreenerProvider,
                  pipeline: OpportunityPipeline, monitor: PositionMonitor,
-                 smartmoney_scanner=None, webhook_manager=None):
+                 smartmoney_scanners: list | None = None, webhook_manager=None):
         self.settings = settings
         self.db = db
         self.market = market
         self.pipeline = pipeline
         self.monitor = monitor
-        self.smartmoney_scanner = smartmoney_scanner
+        self.smartmoney_scanners = smartmoney_scanners or []
         self.webhook_manager = webhook_manager
         self._tasks: list[asyncio.Task] = []
         self._stopping = asyncio.Event()
@@ -44,7 +44,7 @@ class Scheduler:
                                            self.settings.monitor_interval_s)),
             asyncio.create_task(self._startup_health_checks()),
         ]
-        if self.smartmoney_scanner is not None:
+        if self.smartmoney_scanners:
             self._tasks.append(asyncio.create_task(
                 self._loop("smartmoney", self._smartmoney_tick,
                            self.settings.smartmoney_scan_interval_s)))
@@ -61,11 +61,14 @@ class Scheduler:
                                       "pairs_returned": len(pairs)}
         except Exception as exc:
             results["dexscreener"] = {"ok": False, "error": type(exc).__name__}
-        if self.smartmoney_scanner is not None:
+        for scanner in self.smartmoney_scanners:
+            if not hasattr(scanner.swap_source, "health_check"):
+                continue
+            key = f"indexer_{scanner.chain}"
             try:
-                results["helius"] = await self.smartmoney_scanner.helius.health_check()
+                results[key] = await scanner.swap_source.health_check()
             except Exception as exc:
-                results["helius"] = {"ok": False, "error": type(exc).__name__}
+                results[key] = {"ok": False, "error": type(exc).__name__}
         self.db.kv_set("provider_health", json.dumps(results))
         failed = [name for name, r in results.items() if not r.get("ok")]
         if failed:
@@ -140,12 +143,14 @@ class Scheduler:
     async def _smartmoney_tick(self) -> None:
         if self.settings.mode == Mode.DEVELOPMENT:
             return
-        stats = await self.smartmoney_scanner.scan()
-        # Discovery flywheel: analyze tokens tracked smart money just bought.
-        for mint in stats.get("candidate_mints", []):
-            pairs = await self.market.get_token_pairs("solana", mint)
-            if pairs:
-                await self.pipeline.process(max(pairs, key=lambda p: p.liquidity_usd))
+        for scanner in self.smartmoney_scanners:
+            stats = await scanner.scan()
+            # Discovery flywheel: analyze tokens tracked smart money bought.
+            for mint in stats.get("candidate_mints", []):
+                pairs = await self.market.get_token_pairs(scanner.chain, mint)
+                if pairs:
+                    await self.pipeline.process(
+                        max(pairs, key=lambda p: p.liquidity_usd))
         # Keep the webhook's tracked-wallet list current with new scores.
         if self.webhook_manager is not None:
             await self.webhook_manager.sync()

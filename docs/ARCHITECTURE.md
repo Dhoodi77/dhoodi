@@ -104,6 +104,22 @@ Holder distribution for Solana upgrades from the RPC top-20 approximation
 to full DAS `getTokenAccounts` pagination (top-10/top-20 concentration,
 holder count), feeding the on-chain agent's concentration checks.
 
+## EVM wallet intelligence (Etherscan V2)
+
+With `TRADEOS_ETHERSCAN_API_KEY` set, the same scanner runs per allowed
+EVM chain (ethereum, base, bsc, arbitrum, polygon — one key, one shared
+rate limiter). Etherscan has no parsed-swap API, so swaps are
+reconstructed deterministically: token transfers grouped per transaction
+hash against a per-chain counter-asset registry (wrapped native +
+stablecoins), with native ETH/BNB/POL legs joined from normal and internal
+transaction feeds. Only unambiguous single-token swaps are recorded —
+multi-hop and multi-token routes are skipped, never approximated. Round
+trips match within one counter asset (returns are unit-independent);
+whale signals on EVM use only stablecoin-denominated swaps, where USD
+value is exact. Candidate wallets for a token come from its recent
+transfer participants; pools and routers wash out naturally because their
+histories don't parse into round trips.
+
 ## Real-time wallet tracking (Helius webhooks)
 
 With `TRADEOS_PUBLIC_URL` + `TRADEOS_HELIUS_WEBHOOK_SECRET` also set, the

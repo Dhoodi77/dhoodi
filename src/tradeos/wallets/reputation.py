@@ -99,6 +99,7 @@ class WalletReputationStore:
     def token_signals(self, chain: str, token_mint: str, since_hours: float = 24.0,
                       smart_threshold: float = 65.0,
                       whale_sol_threshold: float = 50.0,
+                      whale_usd_threshold: float = 5000.0,
                       now: float | None = None) -> tuple[float | None, float | None]:
         """(smart_money_score, whale_score) for a token, both 0-100 or None.
 
@@ -106,16 +107,27 @@ class WalletReputationStore:
           smart: 50 baseline, +15 per distinct smart-money buyer, -10 per
                  distinct smart-money seller; None when no scored wallet
                  touched the token in the window.
-          whale: buy/sell balance of swaps >= whale_sol_threshold SOL;
-                 None when no whale-sized swaps occurred.
+          whale: buy/sell balance of whale-sized swaps; None when none
+                 occurred. On Solana a whale swap is >= whale_sol_threshold
+                 SOL; on EVM chains only stablecoin-denominated swaps count
+                 (USD value is unambiguous), >= whale_usd_threshold.
         """
         now = now or time.time()
         rows = self.db.query(
-            "SELECT wallet, direction, sol_amount FROM wallet_swaps "
+            "SELECT wallet, direction, sol_amount, counter_mint FROM wallet_swaps "
             "WHERE chain = ? AND token_mint = ? AND block_time >= ?",
             (chain, token_mint, now - since_hours * 3600))
         if not rows:
             return None, None
+
+        def _whale_size(row: dict) -> bool:
+            amount = row["sol_amount"] or 0
+            if chain == "solana":
+                return amount >= whale_sol_threshold
+            from tradeos.providers.chains.etherscan import STABLE_COUNTERS
+            stables = STABLE_COUNTERS.get(chain, set())
+            return (row["counter_mint"] or "") in stables and \
+                amount >= whale_usd_threshold
 
         def _clamp(v: float) -> float:
             return round(max(0.0, min(100.0, v)), 2)
@@ -131,11 +143,9 @@ class WalletReputationStore:
                            - 10 * len(smart_sellers))
 
         whale_buy = sum(r["sol_amount"] or 0 for r in rows
-                        if r["direction"] == "buy"
-                        and (r["sol_amount"] or 0) >= whale_sol_threshold)
+                        if r["direction"] == "buy" and _whale_size(r))
         whale_sell = sum(r["sol_amount"] or 0 for r in rows
-                         if r["direction"] == "sell"
-                         and (r["sol_amount"] or 0) >= whale_sol_threshold)
+                         if r["direction"] == "sell" and _whale_size(r))
         whale = None
         if whale_buy + whale_sell > 0:
             whale = _clamp(NEUTRAL_SCORE
